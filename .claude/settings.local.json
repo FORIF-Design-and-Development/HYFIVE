@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(curl -s https://start.spring.io/starter.zip -d type=gradle-project -d language=java -d bootVersion=3.4.4 -d baseDir=backend -d groupId=com.hyfive -d artifactId=backend -d name=backend -d packageName=com.hyfive.backend -d javaVersion=21 -d dependencies=web -o /tmp/backend.zip)",
+      "Bash(unzip -o /tmp/backend.zip -d .)",
+      "Bash(powershell -Command \"Invoke-WebRequest -Uri 'https://start.spring.io/starter.zip?type=gradle-project&language=java&bootVersion=3.4.4&baseDir=backend&groupId=com.hyfive&artifactId=backend&name=backend&packageName=com.hyfive.backend&javaVersion=21&dependencies=web' -OutFile 'C:/Users/ABC/Desktop/Project/FORIF 26-1 기획개발 2팀/HYFIVE/backend.zip'\")",
+      "Bash(powershell.exe:*)",
+      "Bash(curl --version)",
+      "Bash(curl -L 'https://start.spring.io/starter.zip?type=gradle-project&language=java&bootVersion=3.4.4&baseDir=backend&groupId=com.hyfive&artifactId=backend&name=backend&packageName=com.hyfive.backend&javaVersion=21&dependencies=web' -o 'C:/Users/ABC/Desktop/Project/FORIF 26-1 기획개발 2팀/HYFIVE/backend.zip')",
+      "Bash(curl -L 'https://start.spring.io/starter.zip?type=gradle-project&language=java&bootVersion=3.5.0&baseDir=backend&groupId=com.hyfive&artifactId=backend&name=backend&packageName=com.hyfive.backend&javaVersion=21&dependencies=web' -o 'C:/Users/ABC/Desktop/Project/FORIF 26-1 기획개발 2팀/HYFIVE/backend.zip')",
+      "Bash(unzip -o 'C:/Users/ABC/Desktop/Project/FORIF 26-1 기획개발 2팀/HYFIVE/backend.zip' -d 'C:/Users/ABC/Desktop/Project/FORIF 26-1 기획개발 2팀/HYFIVE')",
+      "Bash(rm 'C:/Users/ABC/Desktop/Project/FORIF 26-1 기획개발 2팀/HYFIVE/backend.zip')"
+    ]
+  }
+}
