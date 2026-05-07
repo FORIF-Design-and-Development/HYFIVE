@@ -24,13 +24,9 @@ HYFIVE/
 cd frontend
 npm install
 npm run dev        # http://localhost:5173
-npm run build      # 프로덕션 빌드
-npm run typecheck  # TypeScript 검사
-npm run lint       # ESLint
 ```
 
 환경변수: `frontend/.env.example` 참고
-
 - `VITE_USE_MOBILE_FRAME=true` — 데스크톱 브라우저에서 iPhone 목 프레임 표시
 - `VITE_USE_MOBILE_FRAME=false` — react-native-webview 배포 시 풀스크린 모드
 
@@ -48,7 +44,7 @@ cd backend
 | `frontend-ci.yml` | PR → main (`frontend/**` 변경 시) | typecheck + lint + build 검증 |
 | `frontend-cd.yml` | push to main (`frontend/**` 변경 시) | Firebase Hosting 자동 배포 |
 
-CD 첫 설정은 [`docs/CICD_SETUP.md`](docs/CICD_SETUP.md)를 참고하세요.
+
 
 ## 기술 스택
 
@@ -60,6 +56,5 @@ CD 첫 설정은 [`docs/CICD_SETUP.md`](docs/CICD_SETUP.md)를 참고하세요.
 | 모바일 배포 | react-native-webview (별도 plan, 후속 작업) |
 
 ## 라이선스
-
 shadcn/ui components: MIT License
 Unsplash photos: Unsplash License
