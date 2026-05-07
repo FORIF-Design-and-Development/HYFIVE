@@ -14,46 +14,46 @@ CD는 아래 Firebase 설정이 완료되어야 동작합니다.
 ## 1단계: Firebase 프로젝트 생성
 
 ```bash
-# firebase-tools가 없으면 설치
-npm install -g firebase-tools
-
-# Google 계정으로 로그인
-firebase login
-
-# 프로젝트 생성 (이름은 전 세계 고유해야 함)
-firebase projects:create hyfive-app --display-name "HYFIVE"
+# (이미 완료됨 — 2026-05-07 세팅)
+# Firebase 프로젝트: hyfive-forif
+# Hosting URL: https://hyfive-forif.web.app
+# Firebase Console: https://console.firebase.google.com/project/hyfive-forif/overview
 ```
-
-또는 [Firebase Console](https://console.firebase.google.com/)에서 직접 생성.
 
 ---
 
-## 2단계: .firebaserc 업데이트
+## 2단계: .firebaserc 확인
 
-`.firebaserc` 파일의 `YOUR_FIREBASE_PROJECT_ID`를 실제 프로젝트 ID로 교체합니다.
+`.firebaserc`가 이미 실제 프로젝트 ID로 설정되어 있습니다:
 
 ```json
 {
   "projects": {
-    "default": "hyfive-app"
+    "default": "hyfive-forif"
   }
 }
 ```
 
-프로젝트 ID 확인: Firebase Console → 프로젝트 설정 → 일반 탭 → 프로젝트 ID
+---
+
+## 3단계: GitHub Actions용 Service Account 키 (이미 생성됨)
+
+Service Account `github-actions-deploy@hyfive-forif.iam.gserviceaccount.com`이 이미 생성되어 있습니다.
+
+키 파일 위치: `C:\Users\ABC\Downloads\hyfive-github-actions-key.json`
+
+키를 분실한 경우:
+```bash
+gcloud iam service-accounts keys create hyfive-github-actions-key.json \
+  --iam-account="github-actions-deploy@hyfive-forif.iam.gserviceaccount.com" \
+  --project=hyfive-forif
+```
 
 ---
 
-## 3단계: GitHub Actions용 Service Account 생성
+## 4단계: GitHub Secrets / Variables 등록 (수동 필요)
 
-1. [Firebase Console](https://console.firebase.google.com/) → 프로젝트 선택
-2. 좌측 하단 **프로젝트 설정** (톱니바퀴) 클릭
-3. **서비스 계정** 탭 → **새 비공개 키 생성**
-4. 다운로드된 JSON 파일 내용 전체를 복사 (파일 삭제 후 분실하지 않도록 주의)
-
----
-
-## 4단계: GitHub Secrets / Variables 등록
+**https://github.com/FORIF-Design-and-Development/HYFIVE/settings/secrets/actions** 에서 직접 등록.
 
 GitHub 레포 → **Settings → Secrets and variables → Actions**
 
@@ -91,7 +91,7 @@ firebase hosting:channel:open live
 1. `frontend-ci.yml`이 PR 단계에서 typecheck + lint + build 검증
 2. 머지 완료 후 `frontend-cd.yml`이 자동 실행
 3. `frontend/dist`가 Firebase Hosting에 배포됨
-4. 배포 URL: `https://YOUR_FIREBASE_PROJECT_ID.web.app`
+4. 배포 URL: **https://hyfive-forif.web.app**
 
 ---
 
