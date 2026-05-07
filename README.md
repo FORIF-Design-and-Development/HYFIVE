@@ -1,20 +1,4 @@
-# HYFIVE
-
-AI 반려동물 건강 통합 관리 앱 — FORIF 26-1 기획개발 2팀
-
-## 프로젝트 구조
-
-```
-HYFIVE/
-├── frontend/          # React 18 + TypeScript + Vite 6 + Tailwind v4 + shadcn/ui
-│                      # 웹앱 SPA (Figma Make 디자인 초안 기반)
-│                      # → 향후 react-native-webview 셸로 모바일 배포 예정
-│
-├── backend/           # Spring Boot 백엔드 API
-│
-├── DESIGN.md          # 디자인 토큰 SSOT (컬러, 폰트, 간격, 컴포넌트 패턴)
-└── docs/              # PRD, API 명세, 아키텍처, 플랜
-```
+# HYFIVE(AI 반려동물 건강 통합 관리 앱 — FORIF 26-1 기획개발 2팀)
 
 ## 개발 시작
 
