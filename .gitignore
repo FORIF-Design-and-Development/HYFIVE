@@ -2,3 +2,5 @@
 docs/*
 DESIGN.md
 .cursorrules
+.claude/*
+.vscode/*
