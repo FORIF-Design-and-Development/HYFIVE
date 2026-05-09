@@ -1,0 +1,29 @@
+{
+  "name": "hyfive",
+  "version": "1.0.0",
+  "description": "AI 반려동물 건강 통합 관리 앱 — FORIF 26-1 기획개발 2팀",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepare": "husky"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FORIF-Design-and-Development/HYFIVE.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/FORIF-Design-and-Development/HYFIVE/issues"
+  },
+  "homepage": "https://github.com/FORIF-Design-and-Development/HYFIVE#readme",
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.0",
+    "@commitlint/config-conventional": "^21.0.0",
+    "husky": "^9.1.7"
+  }
+}
