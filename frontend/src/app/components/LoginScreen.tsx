@@ -21,7 +21,7 @@ export default function LoginScreen() {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      navigate('/welcome-login');
+      navigate('/welcome');
     }, 900);
   };
 
@@ -122,7 +122,7 @@ export default function LoginScreen() {
 
           {/* Google Login */}
           <button
-            onClick={() => navigate('/welcome-login')}
+            onClick={() => navigate('/welcome')}
             className="w-full rounded-xl flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
             style={{ height: '50px', backgroundColor: 'white', border: '1.5px solid #E0E0E0', color: '#1C1C1C', fontSize: '14px', fontWeight: 600, cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
