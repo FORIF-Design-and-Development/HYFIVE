@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft } from 'lucide-react';
+import type { VaccineKey } from '../context/onboarding';
+import { useOnboarding } from '../context/useOnboarding';
 
 function ProgressBar({ step }: { step: number }) {
   return (
@@ -12,8 +14,6 @@ function ProgressBar({ step }: { step: number }) {
     </div>
   );
 }
-
-type VaccineKey = 'dhppl' | 'rabies' | 'kennel' | 'corona' | 'heartworm' | 'parasite';
 
 interface VaccineItem {
   key: VaccineKey;
@@ -55,20 +55,32 @@ function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: str
 
 export default function OnboardingStep2() {
   const navigate = useNavigate();
-  const [vaccines, setVaccines] = useState<Record<VaccineKey, boolean>>({
-    dhppl: true,
-    rabies: true,
-    kennel: false,
-    corona: false,
-    heartworm: false,
-    parasite: false,
-  });
-  const [lastCheckup, setLastCheckup] = useState('');
-  const [diseases, setDiseases] = useState('');
+  const { step2, updateStep2 } = useOnboarding();
+  const [vaccines, setVaccines] = useState<Record<VaccineKey, boolean>>(step2.vaccines);
+  const [lastCheckup, setLastCheckup] = useState(step2.lastCheckup);
+  const [diseases, setDiseases] = useState(step2.diseases);
 
   const toggle = (key: VaccineKey) => setVaccines(v => ({ ...v, [key]: !v[key] }));
 
   const completedCount = Object.values(vaccines).filter(Boolean).length;
+
+  const handleNext = () => {
+    updateStep2({
+      vaccines,
+      lastCheckup,
+      diseases,
+    });
+    navigate('/onboarding/3');
+  };
+
+  const handlePrevious = () => {
+    updateStep2({
+      vaccines,
+      lastCheckup,
+      diseases,
+    });
+    navigate('/onboarding/1');
+  };
 
   return (
     <MobileFrame>
@@ -76,7 +88,7 @@ export default function OnboardingStep2() {
 
         {/* Header */}
         <div className="flex-shrink-0 bg-white flex items-center px-4" style={{ height: '52px', borderBottom: '1px solid #E8E8E8' }}>
-          <button onClick={() => navigate('/onboarding/1')} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: '#1B4B8C' }}>
+          <button onClick={handlePrevious} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: '#1B4B8C' }}>
             <ChevronLeft size={22} />
           </button>
           <div className="flex-1 text-center">
@@ -168,12 +180,12 @@ export default function OnboardingStep2() {
 
         {/* CTAs */}
         <div className="flex-shrink-0 px-5" style={{ paddingBottom: '28px', paddingTop: '12px', backgroundColor: '#F8FAFD' }}>
-          <button onClick={() => navigate('/onboarding/3')}
+          <button onClick={handleNext}
             className="w-full rounded-xl transition-all active:scale-[0.98]"
             style={{ height: '50px', background: 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)', color: 'white', fontSize: '15px', fontWeight: 700, boxShadow: '0 4px 16px rgba(27,75,140,0.3)', marginBottom: '10px' }}>
             다음
           </button>
-          <button onClick={() => navigate('/onboarding/1')} style={{ width: '100%', textAlign: 'center', fontSize: '13px', color: '#9E9E9E', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <button onClick={handlePrevious} style={{ width: '100%', textAlign: 'center', fontSize: '13px', color: '#9E9E9E', background: 'none', border: 'none', cursor: 'pointer' }}>
             이전으로
           </button>
         </div>
