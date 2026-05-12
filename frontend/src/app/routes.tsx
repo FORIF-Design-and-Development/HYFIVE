@@ -8,7 +8,6 @@ import SelfSignupScreen from "./components/SelfSignupScreen";
 import SignupTermsScreen from "./components/SignupTermsScreen";
 import ForgotPasswordScreen from "./components/ForgotPasswordScreen";
 import PasswordResetScreen from "./components/PasswordResetScreen";
-import WelcomeLoginScreen from "./components/WelcomeLoginScreen";
 import OnboardingStep1 from "./components/OnboardingStep1";
 import OnboardingStep2 from "./components/OnboardingStep2";
 import OnboardingStep3 from "./components/OnboardingStep3";
@@ -38,7 +37,6 @@ export const router = createBrowserRouter([
   { path: "/signup/terms", Component: SignupTermsScreen },
   { path: "/forgot-password", Component: ForgotPasswordScreen },
   { path: "/password-reset", Component: PasswordResetScreen },
-  { path: "/welcome-login", Component: WelcomeLoginScreen },
   { path: "/onboarding/1", Component: OnboardingStep1 },
   { path: "/onboarding/2", Component: OnboardingStep2 },
   { path: "/onboarding/3", Component: OnboardingStep3 },

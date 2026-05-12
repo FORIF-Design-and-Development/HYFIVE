@@ -9,7 +9,7 @@ export default function Screen1Welcome() {
 
   const handleNext = () => {
     if (selectedType === 'new') navigate('/onboarding/1');
-    if (selectedType === 'existing') navigate('/login');
+    if (selectedType === 'existing') navigate('/home');
   };
 
   return (
