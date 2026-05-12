@@ -23,6 +23,7 @@ export default function OnboardingStep1() {
   const [form, setForm] = useState({ name: '', breed: '', birthdate: '2021-03-15', gender: '수컷', neutered: '완료', weight: '' });
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [isCustomBreed, setIsCustomBreed] = useState(false);
   const [showBreedPicker, setShowBreedPicker] = useState(false);
 
   const breedList = petType === 'cat' ? CAT_BREEDS : DOG_BREEDS;
@@ -35,7 +36,15 @@ export default function OnboardingStep1() {
   }, [photoPreviewUrl]);
 
   const handleBreedSelect = (breed: string) => {
+    if (breed === '기타') {
+      setForm({ ...form, breed: '' });
+      setIsCustomBreed(true);
+      setShowBreedPicker(false);
+      return;
+    }
+
     setForm({ ...form, breed });
+    setIsCustomBreed(false);
     setShowBreedPicker(false);
   };
 
@@ -87,7 +96,7 @@ export default function OnboardingStep1() {
               ].map(item => (
                 <button
                   key={item.type}
-                  onClick={() => { setPetType(item.type); setForm(f => ({ ...f, breed: '' })); }}
+                  onClick={() => { setPetType(item.type); setForm(f => ({ ...f, breed: '' })); setIsCustomBreed(false); }}
                   className="flex-1 rounded-2xl p-4 flex flex-col items-center gap-2 transition-all active:scale-[0.97]"
                   style={{
                     border: petType === item.type ? '2px solid #1B4B8C' : '1.5px solid #E0E0E0',
@@ -191,12 +200,22 @@ export default function OnboardingStep1() {
                 <button
                   onClick={() => petType && setShowBreedPicker(true)}
                   className="w-full rounded-xl px-4 pr-10 flex items-center text-left"
-                  style={{ height: '44px', fontSize: '13px', border: '1.5px solid #E0E0E0', backgroundColor: petType ? 'white' : '#F5F5F5', color: form.breed ? '#1C1C1C' : '#BDBDBD' }}
+                  style={{ height: '44px', fontSize: '13px', border: isCustomBreed || form.breed ? '2px solid #1B4B8C' : '1.5px solid #E0E0E0', backgroundColor: petType ? 'white' : '#F5F5F5', color: isCustomBreed || form.breed ? '#1C1C1C' : '#BDBDBD' }}
                 >
-                  {form.breed || (petType ? '품종을 선택해주세요' : '동물 유형을 먼저 선택해주세요')}
+                  {isCustomBreed ? '기타 (직접 입력)' : form.breed || (petType ? '품종을 선택해주세요' : '동물 유형을 먼저 선택해주세요')}
                 </button>
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2" size={18} style={{ color: '#1B4B8C' }} />
               </div>
+              {isCustomBreed && (
+                <input
+                  type="text"
+                  value={form.breed}
+                  onChange={e => setForm({ ...form, breed: e.target.value })}
+                  placeholder="품종을 직접 입력해주세요"
+                  className="w-full rounded-xl px-4 mt-2"
+                  style={{ height: '44px', fontSize: '13px', border: form.breed ? '2px solid #1B4B8C' : '1.5px solid #C5D8EE', backgroundColor: form.breed ? '#E8F0FA' : 'white', color: '#1C1C1C', outline: 'none' }}
+                />
+              )}
             </div>
 
             {/* Birthdate */}
