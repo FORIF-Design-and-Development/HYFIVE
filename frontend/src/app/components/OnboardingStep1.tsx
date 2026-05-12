@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft, Camera, ChevronDown, X } from 'lucide-react';
@@ -18,17 +18,36 @@ const CAT_BREEDS = ['아메리칸 숏헤어', '스코티시 폴드', '페르시�
 
 export default function OnboardingStep1() {
   const navigate = useNavigate();
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [petType, setPetType] = useState<'dog' | 'cat' | null>(null);
   const [form, setForm] = useState({ name: '', breed: '', birthdate: '2021-03-15', gender: '수컷', neutered: '완료', weight: '' });
-  const [hasPhoto, setHasPhoto] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
   const [showBreedPicker, setShowBreedPicker] = useState(false);
 
   const breedList = petType === 'cat' ? CAT_BREEDS : DOG_BREEDS;
   const canProceed = petType !== null && form.name.length > 0 && form.gender && form.neutered;
 
+  useEffect(() => {
+    return () => {
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    };
+  }, [photoPreviewUrl]);
+
   const handleBreedSelect = (breed: string) => {
     setForm({ ...form, breed });
     setShowBreedPicker(false);
+  };
+
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setPhotoPreviewUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return URL.createObjectURL(file);
+    });
+    setPhotoFile(file);
   };
 
   return (
@@ -89,28 +108,66 @@ export default function OnboardingStep1() {
           </div>
 
           {/* Photo upload */}
-          <div className="flex justify-center py-3">
-            <button
-              onClick={() => setHasPhoto(!hasPhoto)}
-              className="relative rounded-full flex items-center justify-center transition-all active:scale-95"
-              style={{
-                width: '88px', height: '88px',
-                backgroundColor: hasPhoto ? '#1B4B8C' : '#E8F0FA',
-                border: hasPhoto ? '3px solid #1B4B8C' : '2px dashed #6A9FD4',
-              }}
-            >
-              {hasPhoto ? (
-                <span style={{ fontSize: '44px' }}>{petType === 'cat' ? '🐱' : '🐶'}</span>
-              ) : (
-                <div className="flex flex-col items-center gap-1">
-                  <Camera size={22} style={{ color: '#6A9FD4' }} />
-                  <span style={{ fontSize: '9px', color: '#6A9FD4', fontWeight: 600 }}>사진 추가</span>
-                </div>
-              )}
-              <div className="absolute bottom-0 right-0 w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#1B4B8C', border: '2px solid white' }}>
-                <Camera size={12} style={{ color: 'white' }} />
+          <div className="flex flex-col items-center py-4">
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handlePhotoChange}
+            />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="rounded-2xl flex items-center justify-center transition-all active:scale-95 overflow-hidden"
+                aria-label="반려동물 사진 업로드"
+                title={photoFile?.name || '반려동물 사진 업로드'}
+                style={{
+                  width: '112px',
+                  height: '112px',
+                  backgroundColor: photoPreviewUrl ? 'white' : '#F5F8FE',
+                  border: photoPreviewUrl ? '2px solid #1B4B8C' : '2px dashed #6A9FD4',
+                  boxShadow: photoPreviewUrl ? '0 8px 22px rgba(27,75,140,0.16)' : 'none',
+                }}
+              >
+                {photoPreviewUrl ? (
+                  <img
+                    src={photoPreviewUrl}
+                    alt={photoFile ? `${photoFile.name} 미리보기` : '반려동물 사진 미리보기'}
+                    className="w-full h-full"
+                    style={{ objectFit: 'contain', backgroundColor: '#F8FAFD' }}
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E8F0FA' }}>
+                      <Camera size={20} style={{ color: '#1B4B8C' }} />
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#1B4B8C', fontWeight: 700 }}>사진 추가</span>
+                  </div>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95"
+                aria-label={photoPreviewUrl ? '반려동물 사진 변경' : '반려동물 사진 추가'}
+                style={{
+                  backgroundColor: '#1B4B8C',
+                  border: '3px solid white',
+                  boxShadow: '0 4px 12px rgba(27,75,140,0.32)',
+                }}
+              >
+                <Camera size={15} style={{ color: 'white' }} />
+              </button>
+            </div>
+            {photoFile && (
+              <div className="mt-3 px-3 py-1.5 rounded-full max-w-full" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
+                <p className="truncate" style={{ maxWidth: '180px', fontSize: '10px', color: '#1B4B8C', fontWeight: 600 }}>
+                  {photoFile.name}
+                </p>
               </div>
-            </button>
+            )}
           </div>
 
           <div className="space-y-3">
