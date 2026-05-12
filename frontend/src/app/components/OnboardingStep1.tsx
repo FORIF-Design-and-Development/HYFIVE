@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft, Camera, ChevronDown, X } from 'lucide-react';
+import { useOnboarding } from '../context/useOnboarding';
 
 function ProgressBar({ step }: { step: number }) {
   return (
@@ -18,11 +19,12 @@ const CAT_BREEDS = ['아메리칸 숏헤어', '스코티시 폴드', '페르시�
 
 export default function OnboardingStep1() {
   const navigate = useNavigate();
+  const { step1, updateStep1 } = useOnboarding();
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [petType, setPetType] = useState<'dog' | 'cat' | null>(null);
-  const [form, setForm] = useState({ name: '', breed: '', birthdate: '2021-03-15', gender: '수컷', neutered: '완료', weight: '' });
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [petType, setPetType] = useState<'dog' | 'cat' | null>(step1.petType);
+  const [form, setForm] = useState({ name: step1.name, breed: step1.breed, birthdate: step1.birthdate, gender: step1.gender, neutered: step1.neutered, weight: step1.weight });
+  const [photoFile, setPhotoFile] = useState<File | null>(step1.photoFile);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(() => step1.photoFile ? URL.createObjectURL(step1.photoFile) : null);
   const [isCustomBreed, setIsCustomBreed] = useState(false);
   const [showBreedPicker, setShowBreedPicker] = useState(false);
 
@@ -57,6 +59,15 @@ export default function OnboardingStep1() {
       return URL.createObjectURL(file);
     });
     setPhotoFile(file);
+  };
+
+  const handleNext = () => {
+    updateStep1({
+      petType,
+      ...form,
+      photoFile,
+    });
+    navigate('/onboarding/2');
   };
 
   return (
@@ -279,7 +290,7 @@ export default function OnboardingStep1() {
 
         {/* CTA */}
         <div className="flex-shrink-0 px-5" style={{ paddingBottom: '28px', paddingTop: '12px', backgroundColor: '#F8FAFD' }}>
-          <button onClick={() => navigate('/onboarding/2')} disabled={!canProceed}
+          <button onClick={handleNext} disabled={!canProceed}
             className="w-full rounded-xl transition-all active:scale-[0.98]"
             style={{ height: '50px', background: canProceed ? 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)' : '#E0E0E0', color: 'white', fontSize: '15px', fontWeight: 700, cursor: canProceed ? 'pointer' : 'not-allowed', boxShadow: canProceed ? '0 4px 16px rgba(27,75,140,0.3)' : 'none' }}>
             다음
