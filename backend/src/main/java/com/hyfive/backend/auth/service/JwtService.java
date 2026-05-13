@@ -1,5 +1,6 @@
 package com.hyfive.backend.auth.service;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -13,6 +14,9 @@ import java.util.Date;
 
 @Service
 public class JwtService {
+
+    private static final String ACCESS_TOKEN_TYPE = "ACCESS";
+    private static final String REFRESH_TOKEN_TYPE = "REFRESH";
 
     private final SecretKey secretKey;
     private final long accessTokenExpirationMinutes;
@@ -35,7 +39,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("email", email)
-                .claim("type", "ACCESS")
+                .claim("type", ACCESS_TOKEN_TYPE)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiration))
                 .signWith(secretKey)
@@ -48,10 +52,33 @@ public class JwtService {
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
-                .claim("type", "REFRESH")
+                .claim("type", REFRESH_TOKEN_TYPE)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(expiration))
                 .signWith(secretKey)
                 .compact();
+    }
+
+    public Long getUserIdFromAccessToken(String token) {
+        Claims claims = parseClaims(token);
+        validateAccessToken(claims);
+
+        return Long.valueOf(claims.getSubject());
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    private void validateAccessToken(Claims claims) {
+        String tokenType = claims.get("type", String.class);
+
+        if (!ACCESS_TOKEN_TYPE.equals(tokenType)) {
+            throw new IllegalArgumentException("Access token이 아닙니다.");
+        }
     }
 }
