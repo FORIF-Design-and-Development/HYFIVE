@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import BottomNav from './BottomNav';
-import { ChevronLeft, Camera, ImagePlus, Sparkles, CheckCircle2, X, Edit3, ChevronDown } from 'lucide-react';
+import { ChevronLeft, Camera, Sparkles, CheckCircle2, Edit3, ChevronDown } from 'lucide-react';
 
 type ScreenState = 'upload' | 'analyzing' | 'result';
 type MedicalType = '진료' | '예방접종' | '수술' | '건강검진' | '기타';
@@ -26,16 +25,31 @@ const analyzeSteps = [
 
 export default function MedicalUploadScreen() {
   const navigate = useNavigate();
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+
   const [screenState, setScreenState] = useState<ScreenState>('upload');
   const [selectedDate, setSelectedDate] = useState('2026-03-26');
   const [medType, setMedType] = useState<MedicalType>('진료');
-  const [uploadedCount, setUploadedCount] = useState(0);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = useState<string | null>(null);
   const [analyzeStep, setAnalyzeStep] = useState(0);
   const [ocrData, setOcrData] = useState(MOCK_OCR);
   const [showTypePicker, setShowTypePicker] = useState(false);
 
-  const handleImageUpload = () => {
-    if (uploadedCount < 5) setUploadedCount(v => v + 1);
+  useEffect(() => {
+    return () => {
+      if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
+    };
+  }, [receiptPreviewUrl]);
+
+  const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReceiptPreviewUrl(current => {
+      if (current) URL.revokeObjectURL(current);
+      return URL.createObjectURL(file);
+    });
+    setReceiptFile(file);
   };
 
   const handleAnalyze = () => {
@@ -62,7 +76,7 @@ export default function MedicalUploadScreen() {
 
         {/* Header */}
         <div className="flex-shrink-0 bg-white flex items-center px-4" style={{ height: '52px', borderBottom: '1px solid #E8E8E8' }}>
-          <button onClick={() => screenState === 'upload' ? navigate('/home') : setScreenState('upload')}
+          <button onClick={() => screenState === 'upload' ? navigate('/medical-records') : setScreenState('upload')}
             className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: '#1B4B8C' }}>
             <ChevronLeft size={22} />
           </button>
@@ -121,42 +135,66 @@ export default function MedicalUploadScreen() {
                 )}
               </div>
 
-              {/* Image Upload */}
+              {/* Receipt Image Upload */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#1B4B8C' }}>영수증 이미지</label>
-                  <span style={{ fontSize: '10px', color: '#9E9E9E' }}>{uploadedCount}/5장</span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2 mb-2">
-                  {Array.from({ length: uploadedCount }).map((_, i) => (
-                    <div key={i} className="relative rounded-xl overflow-hidden flex items-center justify-center" style={{ height: '80px', backgroundColor: '#E8F0FA', border: '1.5px solid #C5D8EE' }}>
-                      <span style={{ fontSize: '28px' }}>🧾</span>
-                      <button className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#1B4B8C' }}
-                        onClick={() => setUploadedCount(v => Math.max(0, v - 1))}>
-                        <X size={10} style={{ color: 'white' }} />
-                      </button>
-                    </div>
-                  ))}
-                  {uploadedCount < 5 && (
-                    <button onClick={handleImageUpload}
-                      className="rounded-xl flex flex-col items-center justify-center gap-1.5 transition-all active:scale-95"
-                      style={{ height: '80px', border: '2px dashed #6A9FD4', backgroundColor: 'white' }}>
-                      <ImagePlus size={22} style={{ color: '#6A9FD4' }} />
-                      <span style={{ fontSize: '9px', color: '#6A9FD4', fontWeight: 600 }}>추가</span>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#1B4B8C', display: 'block', marginBottom: '8px' }}>영수증 이미지</label>
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleReceiptChange}
+                />
+                <div className="flex flex-col items-center py-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => receiptInputRef.current?.click()}
+                      className="rounded-2xl flex items-center justify-center transition-all active:scale-95 overflow-hidden"
+                      aria-label="영수증 이미지 업로드"
+                      title={receiptFile?.name || '영수증 이미지 업로드'}
+                      style={{
+                        width: '112px',
+                        height: '112px',
+                        backgroundColor: receiptPreviewUrl ? 'white' : '#F5F8FE',
+                        border: receiptPreviewUrl ? '2px solid #1B4B8C' : '2px dashed #6A9FD4',
+                        boxShadow: receiptPreviewUrl ? '0 8px 22px rgba(27,75,140,0.16)' : 'none',
+                      }}
+                    >
+                      {receiptPreviewUrl ? (
+                        <img
+                          src={receiptPreviewUrl}
+                          alt="영수증 미리보기"
+                          className="w-full h-full"
+                          style={{ objectFit: 'contain', backgroundColor: '#F8FAFD' }}
+                        />
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E8F0FA' }}>
+                            <Camera size={20} style={{ color: '#1B4B8C' }} />
+                          </div>
+                          <span style={{ fontSize: '11px', color: '#1B4B8C', fontWeight: 700 }}>사진 추가</span>
+                        </div>
+                      )}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => receiptInputRef.current?.click()}
+                      className="absolute -bottom-2 -right-2 w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-95"
+                      aria-label={receiptPreviewUrl ? '영수증 이미지 변경' : '영수증 이미지 추가'}
+                      style={{ backgroundColor: '#1B4B8C', border: '3px solid white', boxShadow: '0 4px 12px rgba(27,75,140,0.32)' }}
+                    >
+                      <Camera size={15} style={{ color: 'white' }} />
+                    </button>
+                  </div>
+                  {receiptFile && (
+                    <div className="mt-3 px-3 py-1.5 rounded-full max-w-full" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
+                      <p className="truncate" style={{ maxWidth: '180px', fontSize: '10px', color: '#1B4B8C', fontWeight: 600 }}>
+                        {receiptFile.name}
+                      </p>
+                    </div>
                   )}
                 </div>
-
-                {/* Camera shortcut */}
-                <button onClick={handleImageUpload}
-                  className="w-full rounded-xl flex items-center gap-3 px-4 transition-all active:scale-[0.98]"
-                  style={{ height: '48px', border: '1.5px solid #E0E0E0', backgroundColor: 'white' }}>
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E8F0FA' }}>
-                    <Camera size={16} style={{ color: '#1B4B8C' }} />
-                  </div>
-                  <span style={{ fontSize: '13px', color: '#1C1C1C', fontWeight: 600 }}>카메라로 촬영하기</span>
-                </button>
               </div>
 
               {/* OCR Info */}
@@ -169,9 +207,9 @@ export default function MedicalUploadScreen() {
             </div>
 
             <div className="px-5 pb-6">
-              <button onClick={handleAnalyze} disabled={uploadedCount === 0}
+              <button onClick={handleAnalyze} disabled={receiptFile === null}
                 className="w-full rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                style={{ height: '50px', background: uploadedCount > 0 ? 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)' : '#E0E0E0', color: 'white', fontSize: '14px', fontWeight: 700, cursor: uploadedCount > 0 ? 'pointer' : 'not-allowed', boxShadow: uploadedCount > 0 ? '0 4px 16px rgba(27,75,140,0.3)' : 'none', border: 'none' }}>
+                style={{ height: '50px', background: receiptFile ? 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)' : '#E0E0E0', color: 'white', fontSize: '14px', fontWeight: 700, cursor: receiptFile ? 'pointer' : 'not-allowed', boxShadow: receiptFile ? '0 4px 16px rgba(27,75,140,0.3)' : 'none', border: 'none' }}>
                 <Sparkles size={16} />
                 AI 자동 분석 시작
               </button>
@@ -214,7 +252,7 @@ export default function MedicalUploadScreen() {
               {['업로드', 'AI 분석', '확인 저장'].map((s, i) => (
                 <div key={i} className="flex items-center gap-1.5">
                   <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: i <= 2 ? '#1B4B8C' : '#E0E0E0' }}>
+                    style={{ backgroundColor: '#1B4B8C' }}>
                     {i < 2
                       ? <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                       : <span style={{ fontSize: '9px', color: 'white', fontWeight: 700 }}>3</span>
@@ -238,7 +276,7 @@ export default function MedicalUploadScreen() {
 
               {/* OCR Result Fields */}
               <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E0E0E0' }}>
-                <div className="px-4 py-3 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #1B4B8C, #2E6DB4)', borderBottom: '1px solid #E0E0E0' }}>
+                <div className="px-4 py-3 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, #1B4B8C, #2E6DB4)' }}>
                   <Sparkles size={14} style={{ color: 'white' }} />
                   <span style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>AI 자동 추출 결과</span>
                   <span className="ml-auto px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.2)', fontSize: '10px', color: 'white', fontWeight: 600 }}>직접 수정 가능</span>
@@ -271,12 +309,12 @@ export default function MedicalUploadScreen() {
               {/* Image preview */}
               <div>
                 <p style={{ fontSize: '11px', fontWeight: 600, color: '#1B4B8C', marginBottom: '8px' }}>첨부 원본 이미지</p>
-                <div className="flex gap-2">
-                  {Array.from({ length: Math.max(1, uploadedCount) }).map((_, i) => (
-                    <div key={i} className="rounded-xl flex items-center justify-center" style={{ width: '64px', height: '80px', backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
-                      <span style={{ fontSize: '28px' }}>🧾</span>
-                    </div>
-                  ))}
+                <div className="rounded-xl overflow-hidden flex items-center justify-center" style={{ width: '64px', height: '80px', backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
+                  {receiptPreviewUrl ? (
+                    <img src={receiptPreviewUrl} alt="영수증" className="w-full h-full" style={{ objectFit: 'contain' }} />
+                  ) : (
+                    <span style={{ fontSize: '28px' }}>🧾</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -294,7 +332,6 @@ export default function MedicalUploadScreen() {
           </div>
         )}
 
-        <BottomNav active="record" />
       </div>
     </MobileFrame>
   );
