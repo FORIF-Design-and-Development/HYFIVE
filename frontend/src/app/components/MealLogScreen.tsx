@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import { ChevronLeft, Plus, Minus, ChevronDown, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Minus, Check, Calendar } from 'lucide-react';
 
 type MealTime = '아침' | '점심' | '저녁' | '간식';
 type FoodType = '건식' | '습식' | '혼합';
@@ -15,6 +15,10 @@ interface MealEntry {
   leftoverAmount: '없음' | '소량' | '절반이상';
   note: string;
   done: boolean;
+}
+
+interface DayMealRecord {
+  entries: Record<MealTime, MealEntry>;
 }
 
 const defaultEntry = (): MealEntry => ({
@@ -43,11 +47,45 @@ const appetiteOptions: { value: AppetiteLevel; label: string; color: string; bg:
   { value: '거부', label: '거부', color: '#B71C1C', bg: '#FFEBEE' },
 ];
 
-const recentHistory = [
-  { date: '4/1 (수)', meals: [{ time: '아침', amount: '180g', appetite: '좋음', foodType: '건식' }, { time: '저녁', amount: '200g', appetite: '보통', foodType: '건식' }] },
-  { date: '3/31 (화)', meals: [{ time: '아침', amount: '180g', appetite: '좋음', foodType: '건식' }, { time: '저녁', amount: '180g', appetite: '좋음', foodType: '건식' }] },
-  { date: '3/30 (월)', meals: [{ time: '아침', amount: '150g', appetite: '부족', foodType: '혼합' }, { time: '저녁', amount: '200g', appetite: '좋음', foodType: '건식' }] },
-];
+const TODAY = '2026-04-02';
+
+const historyData: Record<string, DayMealRecord> = {
+  '2026-04-01': {
+    entries: {
+      아침: { foodType: '건식', amount: 180, appetite: '좋음', hasLeftover: false, leftoverAmount: '없음', note: '', done: true },
+      점심: { ...defaultEntry(), done: false },
+      저녁: { foodType: '건식', amount: 200, appetite: '보통', hasLeftover: true, leftoverAmount: '소량', note: '', done: true },
+      간식: { ...defaultEntry(), done: false },
+    },
+  },
+  '2026-03-31': {
+    entries: {
+      아침: { foodType: '건식', amount: 180, appetite: '좋음', hasLeftover: false, leftoverAmount: '없음', note: '', done: true },
+      점심: { ...defaultEntry(), done: false },
+      저녁: { foodType: '건식', amount: 180, appetite: '좋음', hasLeftover: false, leftoverAmount: '없음', note: '', done: true },
+      간식: { ...defaultEntry(), done: false },
+    },
+  },
+  '2026-03-30': {
+    entries: {
+      아침: { foodType: '혼합', amount: 150, appetite: '부족', hasLeftover: true, leftoverAmount: '절반이상', note: '입맛 없어 보임', done: true },
+      점심: { ...defaultEntry(), done: false },
+      저녁: { foodType: '건식', amount: 200, appetite: '좋음', hasLeftover: false, leftoverAmount: '없음', note: '', done: true },
+      간식: { foodType: '건식', amount: 30, appetite: '좋음', hasLeftover: false, leftoverAmount: '없음', note: '', done: true },
+    },
+  },
+};
+
+const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
+
+function formatDateLabel(dateStr: string) {
+  const d = new Date(dateStr);
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const day = d.getDate();
+  const dayName = DAYS_KR[d.getDay()];
+  return `${year}년 ${month}월 ${day}일 ${dayName}요일`;
+}
 
 export default function MealLogScreen() {
   const navigate = useNavigate();
@@ -60,19 +98,105 @@ export default function MealLogScreen() {
   });
   const [saved, setSaved] = useState(false);
 
-  const entry = entries[activeTab];
+  const [selectedDate, setSelectedDate] = useState(TODAY);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calMonth, setCalMonth] = useState({ year: 2026, month: 4 });
+
+  const isToday = selectedDate === TODAY;
+  const pastData = isToday ? null : historyData[selectedDate] ?? null;
+
+  const displayEntries = isToday ? entries : (pastData?.entries ?? entries);
+  const entry = displayEntries[activeTab];
 
   const update = (patch: Partial<MealEntry>) => {
+    if (!isToday) return;
     setEntries(prev => ({ ...prev, [activeTab]: { ...prev[activeTab], ...patch } }));
   };
 
   const handleSave = () => {
+    if (!isToday) return;
     update({ done: true });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const doneCounts = Object.values(entries).filter(e => e.done).length;
+  const doneCounts = Object.values(displayEntries).filter(e => e.done).length;
+
+  const getDaysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
+  const getFirstDay = (y: number, m: number) => new Date(y, m - 1, 1).getDay();
+
+  const renderCalendar = () => {
+    const { year, month } = calMonth;
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDay(year, month);
+    const cells: (number | null)[] = [
+      ...Array(firstDay).fill(null),
+      ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+    ];
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    const prevMonth = () => setCalMonth(p => p.month === 1 ? { year: p.year - 1, month: 12 } : { ...p, month: p.month - 1 });
+    const nextMonth = () => setCalMonth(p => p.month === 12 ? { year: p.year + 1, month: 1 } : { ...p, month: p.month + 1 });
+
+    return (
+      <div className="bg-white rounded-2xl p-3" style={{ border: '1px solid #E0E0E0' }}>
+        <div className="flex items-center justify-between mb-2">
+          <button onClick={prevMonth} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F0F0F0' }}>
+            <ChevronLeft size={14} style={{ color: '#666' }} />
+          </button>
+          <span style={{ fontSize: '13px', fontWeight: 700, color: '#1C1C1C' }}>{year}년 {month}월</span>
+          <button onClick={nextMonth} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F0F0F0' }}>
+            <ChevronRight size={14} style={{ color: '#666' }} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-7 mb-1">
+          {DAYS_KR.map((d, i) => (
+            <div key={d} className="text-center" style={{ fontSize: '10px', fontWeight: 600, paddingBottom: '4px', color: i === 0 ? '#E53935' : i === 6 ? '#1565C0' : '#9E9E9E' }}>
+              {d}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-y-1">
+          {cells.map((day, idx) => {
+            if (!day) return <div key={idx} />;
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const hasRecord = dateStr in historyData || dateStr === TODAY;
+            const isSelected = dateStr === selectedDate;
+            const isTodayDate = dateStr === TODAY;
+            const isFuture = dateStr > TODAY;
+            const dow = (firstDay + day - 1) % 7;
+
+            return (
+              <button
+                key={idx}
+                disabled={isFuture}
+                onClick={() => { setSelectedDate(dateStr); setShowCalendar(false); }}
+                className="flex flex-col items-center py-1 rounded-lg"
+                style={{
+                  backgroundColor: isSelected ? '#E65100' : isTodayDate ? '#FFF3E0' : 'transparent',
+                  opacity: isFuture ? 0.3 : 1,
+                  cursor: isFuture ? 'default' : 'pointer',
+                }}
+              >
+                <span style={{
+                  fontSize: '12px',
+                  fontWeight: isSelected || isTodayDate ? 700 : 400,
+                  color: isSelected ? 'white' : isTodayDate ? '#E65100' : dow === 0 ? '#E53935' : dow === 6 ? '#1565C0' : '#1C1C1C',
+                }}>
+                  {day}
+                </span>
+                {hasRecord && (
+                  <div style={{ width: '4px', height: '4px', borderRadius: '50%', backgroundColor: isSelected ? 'rgba(255,255,255,0.7)' : '#E65100', marginTop: '1px' }} />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <MobileFrame>
@@ -87,7 +211,9 @@ export default function MealLogScreen() {
             <span style={{ fontSize: '15px', fontWeight: 700, color: '#1C1C1C' }}>식사 기록</span>
           </div>
           <div className="px-2 py-1 rounded-lg" style={{ backgroundColor: '#FFF3E0' }}>
-            <span style={{ fontSize: '11px', color: '#E65100', fontWeight: 700 }}>{doneCounts}/4 완료</span>
+            <span style={{ fontSize: '11px', color: '#E65100', fontWeight: 700 }}>
+              {isToday ? `${doneCounts}/4 완료` : '기록 보기'}
+            </span>
           </div>
         </div>
         <div style={{ height: '2px', background: 'linear-gradient(90deg, #FF6F00 0%, #FFCC02 100%)', flexShrink: 0 }} />
@@ -96,18 +222,35 @@ export default function MealLogScreen() {
 
           {/* Date + Pet */}
           <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ backgroundColor: 'white', border: '1px solid #E8E8E8' }}>
-              <span style={{ fontSize: '12px', color: '#1C1C1C', fontWeight: 600 }}>📅 2026년 4월 2일</span>
-              <ChevronDown size={12} style={{ color: '#9E9E9E' }} />
-            </div>
+            <button
+              onClick={() => setShowCalendar(v => !v)}
+              className="flex items-center gap-1.5"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            >
+              <Calendar size={13} style={{ color: showCalendar ? '#E65100' : '#9E9E9E' }} />
+              <span style={{ fontSize: '12px', color: showCalendar ? '#E65100' : '#9E9E9E', fontWeight: showCalendar ? 700 : 400 }}>
+                {formatDateLabel(selectedDate)}
+              </span>
+            </button>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl" style={{ backgroundColor: '#FFF3E0', border: '1px solid #FFCC80' }}>
               <span style={{ fontSize: '14px' }}>🐶</span>
               <span style={{ fontSize: '12px', color: '#E65100', fontWeight: 700 }}>코코</span>
             </div>
           </div>
 
-          {/* Meal time tabs */}
-          <div className="px-5 pb-3">
+          <div className="px-5 space-y-3 pb-6">
+
+            {/* Calendar dropdown */}
+            {showCalendar && renderCalendar()}
+
+            {/* Past date banner */}
+            {!isToday && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#F3F0FF', border: '1px solid #D4C9F5' }}>
+                <span style={{ fontSize: '11px', color: '#5E35B1', fontWeight: 600 }}>📖 과거 기록 보기 (읽기 전용)</span>
+              </div>
+            )}
+
+            {/* Meal time tabs */}
             <div className="grid grid-cols-4 gap-2">
               {mealTimes.map(t => (
                 <button
@@ -115,13 +258,13 @@ export default function MealLogScreen() {
                   onClick={() => setActiveTab(t)}
                   className="rounded-xl py-2.5 flex flex-col items-center gap-1 transition-all"
                   style={{
-                    backgroundColor: activeTab === t ? '#E65100' : entries[t].done ? '#FFF3E0' : 'white',
-                    border: `1.5px solid ${activeTab === t ? '#E65100' : entries[t].done ? '#FFCC80' : '#E0E0E0'}`,
+                    backgroundColor: activeTab === t ? '#E65100' : displayEntries[t].done ? '#FFF3E0' : 'white',
+                    border: `1.5px solid ${activeTab === t ? '#E65100' : displayEntries[t].done ? '#FFCC80' : '#E0E0E0'}`,
                   }}
                 >
                   <span style={{ fontSize: '18px' }}>{mealEmoji[t]}</span>
-                  <span style={{ fontSize: '11px', fontWeight: 700, color: activeTab === t ? 'white' : entries[t].done ? '#E65100' : '#9E9E9E' }}>{t}</span>
-                  {entries[t].done && activeTab !== t && (
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: activeTab === t ? 'white' : displayEntries[t].done ? '#E65100' : '#9E9E9E' }}>{t}</span>
+                  {displayEntries[t].done && activeTab !== t && (
                     <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E65100' }}>
                       <Check size={9} style={{ color: 'white' }} />
                     </div>
@@ -129,9 +272,6 @@ export default function MealLogScreen() {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="px-5 space-y-3 pb-6">
 
             {/* Food Type */}
             <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E0E0E0' }}>
@@ -148,6 +288,7 @@ export default function MealLogScreen() {
                       color: entry.foodType === ft ? 'white' : '#9E9E9E',
                       fontSize: '12px',
                       fontWeight: 700,
+                      cursor: isToday ? 'pointer' : 'default',
                     }}
                   >
                     {ft === '건식' ? '🥜' : ft === '습식' ? '🥫' : '🥗'} {ft}
@@ -163,26 +304,29 @@ export default function MealLogScreen() {
                 <span style={{ fontSize: '11px', color: '#9E9E9E' }}>권장량: 180~220g</span>
               </div>
               <div className="flex items-center gap-4">
-                <button
-                  onClick={() => update({ amount: Math.max(0, entry.amount - 10) })}
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: '#FFF3E0', border: '1.5px solid #FFCC80' }}
-                >
-                  <Minus size={16} style={{ color: '#E65100' }} />
-                </button>
+                {isToday && (
+                  <button
+                    onClick={() => update({ amount: Math.max(0, entry.amount - 10) })}
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: '#FFF3E0', border: '1.5px solid #FFCC80' }}
+                  >
+                    <Minus size={16} style={{ color: '#E65100' }} />
+                  </button>
+                )}
                 <div className="flex-1 text-center">
                   <span style={{ fontSize: '32px', fontWeight: 700, color: '#E65100' }}>{entry.amount}</span>
                   <span style={{ fontSize: '14px', color: '#9E9E9E', marginLeft: '4px' }}>g</span>
                 </div>
-                <button
-                  onClick={() => update({ amount: entry.amount + 10 })}
-                  className="w-10 h-10 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: '#E65100' }}
-                >
-                  <Plus size={16} style={{ color: 'white' }} />
-                </button>
+                {isToday && (
+                  <button
+                    onClick={() => update({ amount: entry.amount + 10 })}
+                    className="w-10 h-10 rounded-full flex items-center justify-center"
+                    style={{ backgroundColor: '#E65100' }}
+                  >
+                    <Plus size={16} style={{ color: 'white' }} />
+                  </button>
+                )}
               </div>
-              {/* Quick select */}
               <div className="flex gap-2 mt-3">
                 {[100, 150, 180, 200, 250].map(g => (
                   <button
@@ -193,7 +337,9 @@ export default function MealLogScreen() {
                       backgroundColor: entry.amount === g ? '#E65100' : '#F8F8F8',
                       border: `1px solid ${entry.amount === g ? '#E65100' : '#E0E0E0'}`,
                       color: entry.amount === g ? 'white' : '#9E9E9E',
-                      fontSize: '10px', fontWeight: 600,
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      cursor: isToday ? 'pointer' : 'default',
                     }}
                   >
                     {g}g
@@ -217,6 +363,7 @@ export default function MealLogScreen() {
                       color: entry.appetite === opt.value ? 'white' : '#BDBDBD',
                       fontSize: '9px',
                       fontWeight: 700,
+                      cursor: isToday ? 'pointer' : 'default',
                     }}
                   >
                     {opt.label}
@@ -240,6 +387,7 @@ export default function MealLogScreen() {
                       color: entry.leftoverAmount === lv ? 'white' : '#9E9E9E',
                       fontSize: '11px',
                       fontWeight: 700,
+                      cursor: isToday ? 'pointer' : 'default',
                     }}
                   >
                     {lv === '없음' ? '✅ 없음' : lv === '소량' ? '⚠️ 소량' : '❌ 절반이상'}
@@ -255,38 +403,31 @@ export default function MealLogScreen() {
                 value={entry.note}
                 onChange={e => update({ note: e.target.value })}
                 placeholder="특이사항을 입력하세요 (예: 구토 없음, 속도 빠르게 먹음)"
+                readOnly={!isToday}
                 className="w-full rounded-xl p-3 resize-none"
                 rows={3}
-                style={{ backgroundColor: '#F8F8F8', border: '1px solid #EBEBEB', fontSize: '12px', color: '#1C1C1C', outline: 'none' }}
+                style={{ backgroundColor: '#F8F8F8', border: '1px solid #EBEBEB', fontSize: '12px', color: '#1C1C1C', outline: 'none', cursor: isToday ? 'text' : 'default' }}
               />
             </div>
 
-            {/* Save button */}
-            <button
-              onClick={handleSave}
-              className="w-full rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
-              style={{
-                height: '52px',
-                background: saved ? 'linear-gradient(135deg, #2E7D32, #388E3C)' : 'linear-gradient(135deg, #E65100 0%, #FF6F00 100%)',
-                color: 'white',
-                fontSize: '15px',
-                fontWeight: 700,
-                border: 'none',
-                boxShadow: '0 4px 16px rgba(230,81,0,0.35)',
-              }}
-            >
-              {saved ? <><Check size={18} /> 저장 완료!</> : `🍖 ${activeTab} 식사 저장하기`}
-            </button>
-
-            {/* History */}
-            <div>
-              
-              <div className="space-y-2">
-                {recentHistory.map((day, di) => (
-                  null
-                ))}
-              </div>
-            </div>
+            {/* Save button (오늘만) */}
+            {isToday && (
+              <button
+                onClick={handleSave}
+                className="w-full rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                style={{
+                  height: '52px',
+                  background: saved ? 'linear-gradient(135deg, #2E7D32, #388E3C)' : 'linear-gradient(135deg, #E65100 0%, #FF6F00 100%)',
+                  color: 'white',
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  border: 'none',
+                  boxShadow: '0 4px 16px rgba(230,81,0,0.35)',
+                }}
+              >
+                {saved ? <><Check size={18} /> 저장 완료!</> : `🍖 ${activeTab} 식사 저장하기`}
+              </button>
+            )}
 
             <div style={{ height: '8px' }} />
           </div>
