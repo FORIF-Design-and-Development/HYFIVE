@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import { ChevronLeft, Plus, Minus, Check, Weight, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Plus, Minus, Check, Weight, AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
 
 type FecalState = '정상' | '무름' | '딱딱함' | '혈변' | '없음';
 
@@ -70,6 +70,15 @@ export default function HealthLogScreen() {
     setTimeout(() => setSaved(false), 2000);
   };
 
+  const prevWeight = recentHistory[0]?.weight ?? null;
+  const weightDiff = prevWeight !== null ? parseFloat((weight - prevWeight).toFixed(2)) : 0;
+  const weightTrend = weightDiff > 0.15 ? 'up' : weightDiff < -0.15 ? 'down' : 'stable';
+  const trendConfig = {
+    up:     { label: '증가', bg: '#FFF3E0', color: '#E65100', Icon: TrendingUp },
+    down:   { label: '감소', bg: '#E3F2FD', color: '#1565C0', Icon: TrendingDown },
+    stable: { label: '유지', bg: '#E8F5E9', color: '#2E7D32', Icon: Minus },
+  }[weightTrend];
+
   const completedCount = [
     true,
     meds.some(m => m.checked),
@@ -114,9 +123,6 @@ export default function HealthLogScreen() {
                   <Weight size={14} style={{ color: '#1B4B8C' }} />
                 </div>
                 <p style={{ fontSize: '13px', fontWeight: 700, color: '#0D2B5E' }}>체중</p>
-                <span className="ml-auto px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '10px', fontWeight: 600 }}>
-                  {weight > 28.5 ? '▲ 증가' : weight < 28.2 ? '▼ 감소' : '→ 유지'}
-                </span>
               </div>
               <div className="flex items-center gap-4">
                 <button
@@ -138,11 +144,17 @@ export default function HealthLogScreen() {
                   <Plus size={16} style={{ color: 'white' }} />
                 </button>
               </div>
-              <div className="mt-3 flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: '#F8F8F8' }}>
-                <span style={{ fontSize: '10px', color: '#9E9E9E' }}>지난 기록:</span>
-                {recentHistory.map((h, i) => (
-                  <span key={i} style={{ fontSize: '10px', color: '#1B4B8C', fontWeight: 600 }}>{h.date.split(' ')[0]} {h.weight}kg</span>
-                ))}
+              <div className="mt-3 flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: trendConfig.bg }}>
+                <div className="flex items-center gap-2">
+                  <trendConfig.Icon size={15} style={{ color: trendConfig.color }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: trendConfig.color }}>{trendConfig.label}</span>
+                  {prevWeight !== null && (
+                    <span style={{ fontSize: '11px', color: trendConfig.color, opacity: 0.75 }}>
+                      ({weightDiff > 0 ? '+' : ''}{weightDiff.toFixed(1)} kg)
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: '10px', color: '#9E9E9E' }}>전날 대비</span>
               </div>
             </div>
 
