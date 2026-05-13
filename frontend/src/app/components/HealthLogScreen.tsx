@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import { ChevronLeft, Plus, Minus, Check, Weight, AlertCircle, TrendingUp, TrendingDown } from 'lucide-react';
+import { ChevronLeft, Plus, Minus, Check, Droplets, Weight, Heart, AlertCircle } from 'lucide-react';
 
+type Condition = '매우좋음' | '좋음' | '보통' | '나쁨' | '매우나쁨';
 type FecalState = '정상' | '무름' | '딱딱함' | '혈변' | '없음';
 
 interface MedItem {
@@ -12,6 +13,14 @@ interface MedItem {
   checked: boolean;
   note: string;
 }
+
+const conditionOptions: { value: Condition; emoji: string; color: string; bg: string }[] = [
+  { value: '매우좋음', emoji: '😄', color: '#1B5E20', bg: '#E8F5E9' },
+  { value: '좋음', emoji: '😊', color: '#2E7D32', bg: '#C8E6C9' },
+  { value: '보통', emoji: '😐', color: '#F57C00', bg: '#FFF3E0' },
+  { value: '나쁨', emoji: '😟', color: '#E65100', bg: '#FBE9E7' },
+  { value: '매우나쁨', emoji: '😰', color: '#B71C1C', bg: '#FFEBEE' },
+];
 
 const fecalOptions: { value: FecalState; emoji: string; color: string }[] = [
   { value: '정상', emoji: '✅', color: '#2E7D32' },
@@ -33,15 +42,17 @@ const symptomChips = [
 ];
 
 const recentHistory = [
-  { date: '4/1 (수)', weight: 28.3 },
-  { date: '3/31 (화)', weight: 28.4 },
-  { date: '3/30 (월)', weight: 28.3 },
+  { date: '4/1 (수)', weight: 28.3, water: 310, condition: '좋음', fecal: '정상' },
+  { date: '3/31 (화)', weight: 28.4, water: 280, condition: '보통', fecal: '무름' },
+  { date: '3/30 (월)', weight: 28.3, water: 320, condition: '좋음', fecal: '정상' },
 ];
 
 export default function HealthLogScreen() {
   const navigate = useNavigate();
 
   const [weight, setWeight] = useState(28.3);
+  const [water, setWater] = useState(250);
+  const [condition, setCondition] = useState<Condition>('좋음');
   const [fecal, setFecal] = useState<FecalState>('정상');
   const [selectedSymptoms, setSelectedSymptoms] = useState<Set<string>>(new Set());
   const [meds, setMeds] = useState<MedItem[]>([
@@ -55,8 +66,11 @@ export default function HealthLogScreen() {
   const toggleSymptom = (id: string) => {
     setSelectedSymptoms(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -65,24 +79,19 @@ export default function HealthLogScreen() {
     setMeds(prev => prev.map(m => m.id === id ? { ...m, checked: !m.checked } : m));
   };
 
+  const waterPercent = Math.min(100, Math.round((water / 350) * 100));
+
   const handleSave = () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const prevWeight = recentHistory[0]?.weight ?? null;
-  const weightDiff = prevWeight !== null ? parseFloat((weight - prevWeight).toFixed(2)) : 0;
-  const weightTrend = weightDiff > 0.15 ? 'up' : weightDiff < -0.15 ? 'down' : 'stable';
-  const trendConfig = {
-    up:     { label: '증가', bg: '#FFF3E0', color: '#E65100', Icon: TrendingUp },
-    down:   { label: '감소', bg: '#E3F2FD', color: '#1565C0', Icon: TrendingDown },
-    stable: { label: '유지', bg: '#E8F5E9', color: '#2E7D32', Icon: Minus },
-  }[weightTrend];
-
   const completedCount = [
-    true,
+    true, // weight always entered
+    water > 0,
     meds.some(m => m.checked),
     fecal !== null,
+    condition !== null,
   ].filter(Boolean).length;
 
   return (
@@ -98,7 +107,7 @@ export default function HealthLogScreen() {
             <span style={{ fontSize: '15px', fontWeight: 700, color: '#1C1C1C' }}>건강 기록</span>
           </div>
           <div className="px-2 py-1 rounded-lg" style={{ backgroundColor: '#E8F0FA' }}>
-            <span style={{ fontSize: '11px', color: '#1B4B8C', fontWeight: 700 }}>{completedCount}/3 항목</span>
+            <span style={{ fontSize: '11px', color: '#1B4B8C', fontWeight: 700 }}>{completedCount}/5 항목</span>
           </div>
         </div>
         <div style={{ height: '2px', background: 'linear-gradient(90deg, #1B4B8C 0%, #6A9FD4 100%)', flexShrink: 0 }} />
@@ -123,6 +132,9 @@ export default function HealthLogScreen() {
                   <Weight size={14} style={{ color: '#1B4B8C' }} />
                 </div>
                 <p style={{ fontSize: '13px', fontWeight: 700, color: '#0D2B5E' }}>체중</p>
+                <span className="ml-auto px-2 py-0.5 rounded-full" style={{ backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '10px', fontWeight: 600 }}>
+                  {weight > 28.5 ? '▲ 증가' : weight < 28.2 ? '▼ 감소' : '→ 유지'}
+                </span>
               </div>
               <div className="flex items-center gap-4">
                 <button
@@ -144,21 +156,18 @@ export default function HealthLogScreen() {
                   <Plus size={16} style={{ color: 'white' }} />
                 </button>
               </div>
-              <div className="mt-3 flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: trendConfig.bg }}>
-                <div className="flex items-center gap-2">
-                  <trendConfig.Icon size={15} style={{ color: trendConfig.color }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: trendConfig.color }}>{trendConfig.label}</span>
-                  {prevWeight !== null && (
-                    <span style={{ fontSize: '11px', color: trendConfig.color, opacity: 0.75 }}>
-                      ({weightDiff > 0 ? '+' : ''}{weightDiff.toFixed(1)} kg)
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: '10px', color: '#9E9E9E' }}>전날 대비</span>
+              <div className="mt-3 flex items-center gap-2 p-2 rounded-lg" style={{ backgroundColor: '#F8F8F8' }}>
+                <span style={{ fontSize: '10px', color: '#9E9E9E' }}>지난 기록:</span>
+                {recentHistory.map((h, i) => (
+                  <span key={i} style={{ fontSize: '10px', color: '#1B4B8C', fontWeight: 600 }}>{h.date.split(' ')[0]} {h.weight}kg</span>
+                ))}
               </div>
             </div>
 
-            {/* 2. 투약/영양제 */}
+            {/* 2. 음수량 */}
+            
+
+            {/* 3. 투약/영양제 */}
             <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E0E0E0' }}>
               <p style={{ fontSize: '13px', fontWeight: 700, color: '#0D2B5E', marginBottom: '10px' }}>💊 투약 · 영양제</p>
               <div className="space-y-2">
@@ -185,7 +194,7 @@ export default function HealthLogScreen() {
               </div>
             </div>
 
-            {/* 3. 배변 상태 */}
+            {/* 4. 배변 상태 */}
             <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E0E0E0' }}>
               <p style={{ fontSize: '13px', fontWeight: 700, color: '#0D2B5E', marginBottom: '10px' }}>🚽 배변 상태</p>
               <div className="grid grid-cols-5 gap-2">
@@ -212,7 +221,10 @@ export default function HealthLogScreen() {
               )}
             </div>
 
-            {/* 4. 특이증상 */}
+            {/* 5. 컨디션 */}
+            
+
+            {/* 6. 특이증상 */}
             <div className="bg-white rounded-2xl p-4" style={{ border: '1px solid #E0E0E0' }}>
               <p style={{ fontSize: '13px', fontWeight: 700, color: '#0D2B5E', marginBottom: '10px' }}>⚠️ 특이증상 (해당 항목 선택)</p>
               <div className="flex flex-wrap gap-2">
@@ -245,7 +257,7 @@ export default function HealthLogScreen() {
               )}
             </div>
 
-            {/* 5. 저장 */}
+            {/* Save */}
             <button
               onClick={handleSave}
               className="w-full rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
@@ -261,6 +273,9 @@ export default function HealthLogScreen() {
             >
               {saved ? <><Check size={18} /> 저장 완료!</> : '❤️ 건강 기록 저장하기'}
             </button>
+
+            {/* Recent */}
+            
 
             <div style={{ height: '8px' }} />
           </div>
