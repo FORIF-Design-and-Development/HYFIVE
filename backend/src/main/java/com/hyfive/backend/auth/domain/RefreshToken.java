@@ -18,7 +18,8 @@ import java.time.LocalDateTime;
 @Table(
         name = "refresh_tokens",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_refresh_tokens_token_hash", columnNames = "token_hash")
+                @UniqueConstraint(name = "uk_refresh_tokens_token_hash", columnNames = "token_hash"),
+                @UniqueConstraint(name = "uk_refresh_tokens_user_id", columnNames = "user_id")
         }
 )
 public class RefreshToken {
@@ -78,4 +79,10 @@ public class RefreshToken {
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public void updateToken(String tokenHash, LocalDateTime expiresAt) {
+        this.tokenHash = tokenHash;
+        this.expiresAt = expiresAt;
+    }
+
 }

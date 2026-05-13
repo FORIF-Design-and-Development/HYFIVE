@@ -108,10 +108,15 @@ public class AuthService {
         String tokenHash = hashToken(refreshToken);
         LocalDateTime expiresAt = LocalDateTime.now().plusDays(refreshTokenExpirationDays);
 
-        RefreshToken token = RefreshToken.create(user, tokenHash, expiresAt);
-
-        refreshTokenRepository.save(token);
+        refreshTokenRepository.findByUser(user)
+                .ifPresentOrElse(
+                        token -> token.updateToken(tokenHash, expiresAt),
+                        () -> refreshTokenRepository.save(
+                                RefreshToken.create(user, tokenHash, expiresAt)
+                        )
+                );
     }
+
 
     private String hashToken(String token) {
         try {
