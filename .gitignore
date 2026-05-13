@@ -4,7 +4,6 @@ DESIGN.md
 .cursorrules
 .claude/*
 .vscode/*
-*.yml
 
 #node_modules는 github에 올리면 안됨
 node_modules/
