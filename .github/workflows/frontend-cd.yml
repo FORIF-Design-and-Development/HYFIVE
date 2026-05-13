@@ -2,7 +2,7 @@ name: Frontend CD — Firebase Hosting
 
 on:
   push:
-    branches: [dev]
+    branches: [main]
     paths:
       - 'frontend/**'
       - 'firebase.json'
