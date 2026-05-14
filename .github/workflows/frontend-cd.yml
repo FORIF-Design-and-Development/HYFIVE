@@ -2,9 +2,7 @@ name: Frontend CD — Firebase Hosting
 
 on:
   push:
-
-    branches: [dev]
-
+    branches: [main, dev]
     paths:
       - 'frontend/**'
       - 'firebase.json'
@@ -39,25 +37,15 @@ jobs:
         env:
           # WebView 배포용: iPhone 목 프레임 비활성화
           VITE_USE_MOBILE_FRAME: 'false'
-          # 백엔드 URL 확정 후 GitHub Secrets에 등록
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_KAKAO_MAP_KEY: ${{ secrets.VITE_KAKAO_MAP_KEY }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
-      - name: Deploy to Firebase Hosting (production / live)
-        if: github.ref_name == 'main'
+      # 개발 중에는 dev 머지도 운영 채널(live)에 바로 반영
+      - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           channelId: live
-          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
-
-      - name: Deploy to Firebase Hosting (staging / dev channel)
-        if: github.ref_name == 'dev'
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: dev
-          # 30일 안에 다시 머지 안 들어오면 채널 만료. 머지될 때마다 카운트 리셋
-          expires: 30d
           projectId: ${{ vars.FIREBASE_PROJECT_ID }}
