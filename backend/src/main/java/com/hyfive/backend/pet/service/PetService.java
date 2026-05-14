@@ -11,8 +11,10 @@ import com.hyfive.backend.pet.dto.CreatePetVaccinationRequest;
 import com.hyfive.backend.pet.repository.PetRepository;
 import com.hyfive.backend.pet.repository.PetVaccinationRepository;
 import com.hyfive.backend.pet.repository.WeightLogRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 
@@ -79,12 +81,12 @@ public class PetService {
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다."));
     }
 
     private void validateDuplicatePetName(Long userId, String name) {
         if (petRepository.existsByUserUserIdAndName(userId, name)) {
-            throw new IllegalArgumentException("이미 등록된 반려동물 이름입니다.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "이미 등록된 반려동물 이름입니다.");
         }
     }
 
