@@ -102,7 +102,20 @@ public class GoogleTokenVerifier {
         debug.put("idTokenPresent", idToken != null && !idToken.isBlank());
         debug.put("tokenLength", idToken == null ? 0 : idToken.length());
         debug.put("backendGoogleClientIdConfigured", googleClientId != null && !googleClientId.isBlank());
+        debug.put("backendGoogleClientIdVisible", visibleValue(googleClientId));
+        debug.put("backendGoogleClientIdLength", lengthOf(googleClientId));
+        debug.put("backendGoogleClientIdTrimmedLength", trimmedLengthOf(googleClientId));
         debug.put("backendGoogleClientIdSuffix", suffix(googleClientId));
+        debug.put("backendGoogleClientIdHasLeadingWhitespace", hasLeadingWhitespace(googleClientId));
+        debug.put("backendGoogleClientIdHasTrailingWhitespace", hasTrailingWhitespace(googleClientId));
+        debug.put("backendGoogleClientIdContainsQuote", containsQuote(googleClientId));
+        debug.put("backendGoogleClientIdContainsLineBreak", containsLineBreak(googleClientId));
+
+        String envGoogleClientId = System.getenv("GOOGLE_CLIENT_ID");
+        debug.put("envGoogleClientIdPresent", envGoogleClientId != null && !envGoogleClientId.isBlank());
+        debug.put("envGoogleClientIdVisible", visibleValue(envGoogleClientId));
+        debug.put("envGoogleClientIdLength", lengthOf(envGoogleClientId));
+        debug.put("springPropertyEqualsEnv", safeEquals(googleClientId, envGoogleClientId));
 
         if (exception != null) {
             debug.put("exceptionClass", exception.getClass().getName());
@@ -148,6 +161,7 @@ public class GoogleTokenVerifier {
             debug.put("serverNowEpochSeconds", serverNowEpochSeconds);
             debug.put("tokenExpired", isExpired(expiresAt, serverNowEpochSeconds));
             debug.put("audMatchesBackendClientId", audienceMatchesBackendClientId(audience));
+            addAudienceComparisonDiagnostics(debug, audience);
         } catch (Exception e) {
             debug.put(
                     "payloadDecodeError",
@@ -164,10 +178,38 @@ public class GoogleTokenVerifier {
         if (audience instanceof Collection<?> audienceList) {
             return audienceList.stream()
                     .map(String::valueOf)
-                    .anyMatch(googleClientId::equals);
+                    .anyMatch(audienceValue -> safeEquals(googleClientId, audienceValue));
         }
 
         return false;
+    }
+
+    private void addAudienceComparisonDiagnostics(Map<String, Object> debug, Object audience) {
+        if (!(audience instanceof String tokenAudience)) {
+            debug.put("tokenAudienceIsString", false);
+            debug.put("clientIdMismatchReasonHint", "TOKEN_AUDIENCE_IS_NOT_STRING");
+            return;
+        }
+
+        debug.put("tokenAudienceIsString", true);
+        debug.put("tokenAudienceLength", tokenAudience.length());
+        debug.put("equalsAfterTrim", safeEquals(trimToNull(googleClientId), tokenAudience));
+        debug.put(
+                "equalsAfterRemovingWrappingQuotes",
+                safeEquals(removeWrappingQuotes(googleClientId), tokenAudience)
+        );
+        debug.put(
+                "equalsAfterRemovingAllWhitespace",
+                safeEquals(removeAllWhitespace(googleClientId), removeAllWhitespace(tokenAudience))
+        );
+
+        int mismatchIndex = firstMismatchIndex(googleClientId, tokenAudience);
+        debug.put("firstMismatchIndex", mismatchIndex);
+        debug.put("backendMismatchChar", mismatchChar(googleClientId, mismatchIndex));
+        debug.put("backendMismatchCharCode", mismatchCharCode(googleClientId, mismatchIndex));
+        debug.put("tokenAudienceMismatchChar", mismatchChar(tokenAudience, mismatchIndex));
+        debug.put("tokenAudienceMismatchCharCode", mismatchCharCode(tokenAudience, mismatchIndex));
+        debug.put("clientIdMismatchReasonHint", clientIdMismatchReasonHint(googleClientId, tokenAudience));
     }
 
     private boolean isExpired(Object expiresAt, long serverNowEpochSeconds) {
@@ -185,5 +227,151 @@ public class GoogleTokenVerifier {
 
         int startIndex = Math.max(0, value.length() - 16);
         return value.substring(startIndex);
+    }
+
+    private String clientIdMismatchReasonHint(String backendClientId, String tokenAudience) {
+        if (backendClientId == null || backendClientId.isBlank()) {
+            return "BACKEND_GOOGLE_CLIENT_ID_MISSING_OR_BLANK";
+        }
+
+        if (safeEquals(backendClientId, tokenAudience)) {
+            return "MATCHES";
+        }
+
+        if (safeEquals(trimToNull(backendClientId), tokenAudience)) {
+            return "BACKEND_GOOGLE_CLIENT_ID_HAS_LEADING_OR_TRAILING_WHITESPACE";
+        }
+
+        if (safeEquals(removeWrappingQuotes(backendClientId), tokenAudience)) {
+            return "BACKEND_GOOGLE_CLIENT_ID_HAS_WRAPPING_QUOTES";
+        }
+
+        if (safeEquals(removeAllWhitespace(backendClientId), removeAllWhitespace(tokenAudience))) {
+            return "BACKEND_GOOGLE_CLIENT_ID_HAS_WHITESPACE_OR_LINE_BREAK";
+        }
+
+        return "DIFFERENT_GOOGLE_CLIENT_ID";
+    }
+
+    private int firstMismatchIndex(String left, String right) {
+        if (left == null || right == null) {
+            return 0;
+        }
+
+        int minLength = Math.min(left.length(), right.length());
+        for (int index = 0; index < minLength; index++) {
+            if (left.charAt(index) != right.charAt(index)) {
+                return index;
+            }
+        }
+
+        if (left.length() != right.length()) {
+            return minLength;
+        }
+
+        return -1;
+    }
+
+    private String mismatchChar(String value, int index) {
+        if (value == null || index < 0 || index >= value.length()) {
+            return null;
+        }
+
+        return visibleCharacter(value.charAt(index));
+    }
+
+    private Integer mismatchCharCode(String value, int index) {
+        if (value == null || index < 0 || index >= value.length()) {
+            return null;
+        }
+
+        return (int) value.charAt(index);
+    }
+
+    private String visibleCharacter(char character) {
+        return switch (character) {
+            case ' ' -> "[space]";
+            case '\t' -> "\\t";
+            case '\n' -> "\\n";
+            case '\r' -> "\\r";
+            default -> String.valueOf(character);
+        };
+    }
+
+    private String visibleValue(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        return value
+                .replace("\r", "\\r")
+                .replace("\n", "\\n")
+                .replace("\t", "\\t");
+    }
+
+    private boolean safeEquals(String left, String right) {
+        if (left == null) {
+            return right == null;
+        }
+
+        return left.equals(right);
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        return value.trim();
+    }
+
+    private String removeWrappingQuotes(String value) {
+        if (value == null || value.length() < 2) {
+            return value;
+        }
+
+        boolean wrappedWithDoubleQuotes = value.startsWith("\"") && value.endsWith("\"");
+        boolean wrappedWithSingleQuotes = value.startsWith("'") && value.endsWith("'");
+        if (wrappedWithDoubleQuotes || wrappedWithSingleQuotes) {
+            return value.substring(1, value.length() - 1);
+        }
+
+        return value;
+    }
+
+    private String removeAllWhitespace(String value) {
+        if (value == null) {
+            return null;
+        }
+
+        return value.replaceAll("\\s+", "");
+    }
+
+    private Integer lengthOf(String value) {
+        return value == null ? null : value.length();
+    }
+
+    private Integer trimmedLengthOf(String value) {
+        return value == null ? null : value.trim().length();
+    }
+
+    private boolean hasLeadingWhitespace(String value) {
+        return value != null
+                && !value.isEmpty()
+                && Character.isWhitespace(value.charAt(0));
+    }
+
+    private boolean hasTrailingWhitespace(String value) {
+        return value != null
+                && !value.isEmpty()
+                && Character.isWhitespace(value.charAt(value.length() - 1));
+    }
+
+    private boolean containsQuote(String value) {
+        return value != null && (value.contains("\"") || value.contains("'"));
+    }
+
+    private boolean containsLineBreak(String value) {
+        return value != null && (value.contains("\n") || value.contains("\r"));
     }
 }
