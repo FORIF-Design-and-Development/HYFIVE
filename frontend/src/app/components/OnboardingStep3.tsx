@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { CheckCircle2, Edit3 } from 'lucide-react';
-import type { VaccineKey } from '../context/onboarding';
+import type { PetGender, PetType, VaccineCode } from '../context/onboarding';
 import { useOnboarding } from '../context/useOnboarding';
 
 function ProgressBar({ step }: { step: number }) {
@@ -15,24 +15,36 @@ function ProgressBar({ step }: { step: number }) {
   );
 }
 
-const VACCINE_LABELS: Record<VaccineKey, string> = {
-  dhppl: '종합백신 (DHPPL)',
-  rabies: '광견병',
-  kennel: '켄넬코프 (기관지염)',
-  corona: '코로나 장염',
-  heartworm: '심장사상충 예방',
-  parasite: '외부기생충 구제',
+const VACCINE_LABELS: Record<VaccineCode, string> = {
+  DHPPL: '종합백신 (DHPPL)',
+  RABIES: '광견병',
+  KENNEL_COUGH: '켄넬코프 (기관지염)',
+  CORONA_ENTERITIS: '코로나 장염',
+  HEARTWORM: '심장사상충 예방',
+  PARASITE: '외부기생충 구제',
 };
 
-function formatPetType(petType: 'dog' | 'cat' | null) {
-  if (petType === 'dog') return '강아지 🐶';
-  if (petType === 'cat') return '고양이 🐱';
+function formatPetType(petType: PetType | null) {
+  if (petType === 'DOG') return '강아지 🐶';
+  if (petType === 'CAT') return '고양이 🐱';
   return '미입력';
 }
 
-function getPetEmoji(petType: 'dog' | 'cat' | null) {
-  if (petType === 'cat') return '🐱';
+function getPetEmoji(petType: PetType | null) {
+  if (petType === 'CAT') return '🐱';
   return '🐶';
+}
+
+function formatGender(gender: PetGender | null) {
+  if (gender === 'MALE') return '수컷';
+  if (gender === 'FEMALE') return '암컷';
+  return '미입력';
+}
+
+function formatNeutered(isNeutered: boolean | null) {
+  if (isNeutered === true) return '완료';
+  if (isNeutered === false) return '미완료';
+  return '미입력';
 }
 
 function formatAge(birthdate: string) {
@@ -77,11 +89,14 @@ export default function OnboardingStep3() {
     { label: '품종', value: step1.breed || '미입력' },
     { label: '나이', value: formatAge(step1.birthdate) },
     { label: '체중', value: step1.weight ? `${step1.weight} kg` : '미입력' },
-    { label: '성별', value: `${step1.gender || '미입력'} · 중성화 ${step1.neutered || '미입력'}` },
+    {
+      label: '성별',
+      value: `${formatGender(step1.gender)} · 중성화 ${formatNeutered(step1.isNeutered)}`,
+    },
   ];
 
-  const vaccineItems = Object.entries(step2.vaccines).map(([key, completed]) => ({
-    label: VACCINE_LABELS[key as VaccineKey],
+  const vaccineItems = Object.entries(step2.vaccines).map(([code, completed]) => ({
+    label: VACCINE_LABELS[code as VaccineCode],
     status: completed ? '완료' : '미완료',
     ok: completed,
   }));
