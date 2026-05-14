@@ -2,7 +2,7 @@ name: Frontend CD — Firebase Hosting
 
 on:
   push:
-    branches: [dev]
+    branches: [main, dev]
     paths:
       - 'frontend/**'
       - 'firebase.json'
@@ -37,10 +37,12 @@ jobs:
         env:
           # WebView 배포용: iPhone 목 프레임 비활성화
           VITE_USE_MOBILE_FRAME: 'false'
-          # 백엔드 URL 확정 후 GitHub Secrets에 등록
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_KAKAO_MAP_KEY: ${{ secrets.VITE_KAKAO_MAP_KEY }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
-      - name: Deploy to Firebase Hosting
+      # 개발 중에는 dev 머지도 운영 채널(live)에 바로 반영
+      - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}

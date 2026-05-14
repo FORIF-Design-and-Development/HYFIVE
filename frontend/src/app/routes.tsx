@@ -19,6 +19,7 @@ import Screen6PremiumChange from "./components/Screen6PremiumChange";
 import MedicalUploadScreen from "./components/MedicalUploadScreen";
 import MedicalRecordsScreen from "./components/MedicalRecordsScreen";
 import WalkScreen from "./components/WalkScreen";
+import WalkDoneScreen from "./components/WalkDoneScreen";
 import RecordHubScreen from "./components/RecordHubScreen";
 import MealLogScreen from "./components/MealLogScreen";
 import HealthLogScreen from "./components/HealthLogScreen";
@@ -48,6 +49,7 @@ export const router = createBrowserRouter([
   { path: "/medical-upload", Component: MedicalUploadScreen },
   { path: "/medical-records", Component: MedicalRecordsScreen },
   { path: "/walk", Component: WalkScreen },
+  { path: "/walk/done", Component: WalkDoneScreen },
   { path: "/record", Component: RecordHubScreen },
   { path: "/record/meal", Component: MealLogScreen },
   { path: "/record/health", Component: HealthLogScreen },

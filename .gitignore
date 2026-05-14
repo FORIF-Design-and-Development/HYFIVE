@@ -4,6 +4,16 @@ DESIGN.md
 .cursorrules
 .claude/*
 .vscode/*
+CLAUDE.md
+
 
 #node_modules는 github에 올리면 안됨
 node_modules/
+
+# env 파일은 GitHub Secret으로 관리. .env.example만 커밋
+frontend/.env
+frontend/.env.local
+frontend/.env.development
+frontend/.env.development.local
+frontend/.env.production
+frontend/.env.production.local

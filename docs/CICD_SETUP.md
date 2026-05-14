@@ -2,12 +2,23 @@
 
 ## 개요
 
-| 워크플로우 | 파일 | 트리거 |
-|---|---|---|
-| CI (검증) | `.github/workflows/frontend-ci.yml` | PR → main, `frontend/**` 변경 시 |
-| CD (배포) | `.github/workflows/frontend-cd.yml` | push to main, `frontend/**` 변경 시 |
+| 워크플로우 | 파일 | 트리거 | 채널 / URL |
+|---|---|---|---|
+| CI (검증) | `.github/workflows/frontend-ci.yml` | PR → main, `frontend/**` 변경 시 | — |
+| CD | `.github/workflows/frontend-cd.yml` | push to **main** 또는 **dev** | `live` → `https://hyfive-forif.web.app` |
+
+> 개발 단계에는 `dev` 머지도 곧바로 운영 채널(`live`)에 반영됩니다. 별도 스테이징 채널은 운용하지 않습니다.
 
 CD는 아래 Firebase 설정이 완료되어야 동작합니다.
+
+### 배포 흐름 요약
+
+```
+feat/* 브랜치 작업
+   └─ PR → dev (또는 main) 머지  →  https://hyfive-forif.web.app 갱신
+```
+
+> Kakao Maps를 쓰는 화면이 있다면 `hyfive-forif.web.app`이 Kakao Developers 콘솔의 플랫폼 도메인에 등록돼 있어야 지도가 동작합니다.
 
 ---
 
