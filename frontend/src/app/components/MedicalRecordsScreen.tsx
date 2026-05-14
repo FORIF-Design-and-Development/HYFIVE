@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import BottomNav from './BottomNav';
 import { ChevronLeft, ChevronDown, ChevronUp, Plus, Hospital, Receipt, Search } from 'lucide-react';
 
 type MedType = '전체' | '진료' | '예방접종' | '수술' | '건강검진' | '기타';
@@ -101,10 +100,6 @@ export default function MedicalRecordsScreen() {
     return matchType && matchSearch;
   });
 
-  const totalAmount = MOCK_RECORDS.reduce((sum, r) =>
-    sum + parseInt(r.amount.replace(/,/g, '')), 0
-  );
-
   return (
     <MobileFrame>
       <div className="h-full flex flex-col" style={{ fontFamily: "'Noto Sans KR', sans-serif", backgroundColor: '#F5F7FC' }}>
@@ -117,13 +112,7 @@ export default function MedicalRecordsScreen() {
           <div className="flex-1 text-center">
             <span style={{ fontSize: '15px', fontWeight: 700, color: '#1C1C1C' }}>진료기록</span>
           </div>
-          <button
-            onClick={() => navigate('/medical-upload')}
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: '#1B4B8C' }}
-          >
-            <Plus size={18} style={{ color: 'white' }} />
-          </button>
+          <div style={{ width: '36px' }} />
         </div>
         <div style={{ height: '2px', background: 'linear-gradient(90deg, #1B4B8C 0%, #6A9FD4 50%, transparent 100%)', flexShrink: 0 }} />
 
@@ -141,12 +130,6 @@ export default function MedicalRecordsScreen() {
               <div className="flex-1">
                 <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.75)' }}>코코의 진료 내역</p>
                 <p style={{ fontSize: '18px', fontWeight: 700, color: 'white', marginTop: '2px' }}>총 {MOCK_RECORDS.length}건</p>
-              </div>
-              <div className="text-right">
-                <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.65)' }}>누적 의료비</p>
-                <p style={{ fontSize: '15px', fontWeight: 700, color: 'white', marginTop: '2px' }}>
-                  {totalAmount.toLocaleString()}원
-                </p>
               </div>
             </div>
 
@@ -294,7 +277,6 @@ export default function MedicalRecordsScreen() {
           </div>
         </div>
 
-        <BottomNav active="record" />
       </div>
     </MobileFrame>
   );
