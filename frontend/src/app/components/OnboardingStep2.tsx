@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft } from 'lucide-react';
-import type { VaccineKey } from '../context/onboarding';
+import type { VaccineCode } from '../context/onboarding';
 import { useOnboarding } from '../context/useOnboarding';
 
 function ProgressBar({ step }: { step: number }) {
@@ -16,18 +16,18 @@ function ProgressBar({ step }: { step: number }) {
 }
 
 interface VaccineItem {
-  key: VaccineKey;
+  code: VaccineCode;
   label: string;
   desc: string;
 }
 
 const VACCINE_LIST: VaccineItem[] = [
-  { key: 'dhppl', label: '종합백신 (DHPPL)', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'rabies', label: '광견병', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'kennel', label: '켄넬코프 (기관지염)', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'corona', label: '코로나 장염', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'heartworm', label: '심장사상충 예방', desc: '매월 1회 투약' },
-  { key: 'parasite', label: '외부기생충 구제', desc: '분기별 1회' },
+  { code: 'DHPPL', label: '종합백신 (DHPPL)', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'RABIES', label: '광견병', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'KENNEL_COUGH', label: '켄넬코프 (기관지염)', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'CORONA_ENTERITIS', label: '코로나 장염', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'HEARTWORM', label: '심장사상충 예방', desc: '매월 1회 투약' },
+  { code: 'PARASITE', label: '외부기생충 구제', desc: '분기별 1회' },
 ];
 
 function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: string; value: boolean; onChange: () => void }) {
@@ -56,11 +56,11 @@ function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: str
 export default function OnboardingStep2() {
   const navigate = useNavigate();
   const { step2, updateStep2 } = useOnboarding();
-  const [vaccines, setVaccines] = useState<Record<VaccineKey, boolean>>(step2.vaccines);
+  const [vaccines, setVaccines] = useState<Record<VaccineCode, boolean>>(step2.vaccines);
   const [lastCheckup, setLastCheckup] = useState(step2.lastCheckup);
   const [diseases, setDiseases] = useState(step2.diseases);
 
-  const toggle = (key: VaccineKey) => setVaccines(v => ({ ...v, [key]: !v[key] }));
+  const toggle = (code: VaccineCode) => setVaccines(v => ({ ...v, [code]: !v[code] }));
 
   const completedCount = Object.values(vaccines).filter(Boolean).length;
 
@@ -119,11 +119,11 @@ export default function OnboardingStep2() {
               <div className="space-y-2">
                 {VACCINE_LIST.map(v => (
                   <ToggleRow
-                    key={v.key}
+                    key={v.code}
                     label={v.label}
                     desc={v.desc}
-                    value={vaccines[v.key]}
-                    onChange={() => toggle(v.key)}
+                    value={vaccines[v.code]}
+                    onChange={() => toggle(v.code)}
                   />
                 ))}
               </div>

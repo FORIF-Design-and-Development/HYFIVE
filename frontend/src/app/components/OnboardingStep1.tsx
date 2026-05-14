@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft, Camera, ChevronDown, X } from 'lucide-react';
 import { useOnboarding } from '../context/useOnboarding';
+import type { PetGender, PetType } from '../context/onboarding';
 
 function ProgressBar({ step }: { step: number }) {
   return (
@@ -21,15 +22,26 @@ export default function OnboardingStep1() {
   const navigate = useNavigate();
   const { step1, updateStep1 } = useOnboarding();
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [petType, setPetType] = useState<'dog' | 'cat' | null>(step1.petType);
-  const [form, setForm] = useState({ name: step1.name, breed: step1.breed, birthdate: step1.birthdate, gender: step1.gender, neutered: step1.neutered, weight: step1.weight });
+  const [petType, setPetType] = useState<PetType | null>(step1.petType);
+  const [form, setForm] = useState({
+    name: step1.name,
+    breed: step1.breed,
+    birthdate: step1.birthdate,
+    gender: step1.gender,
+    isNeutered: step1.isNeutered,
+    weight: step1.weight,
+  });
   const [photoFile, setPhotoFile] = useState<File | null>(step1.photoFile);
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(() => step1.photoFile ? URL.createObjectURL(step1.photoFile) : null);
   const [isCustomBreed, setIsCustomBreed] = useState(false);
   const [showBreedPicker, setShowBreedPicker] = useState(false);
 
-  const breedList = petType === 'cat' ? CAT_BREEDS : DOG_BREEDS;
-  const canProceed = petType !== null && form.name.length > 0 && form.gender && form.neutered;
+  const breedList = petType === 'CAT' ? CAT_BREEDS : DOG_BREEDS;
+  const canProceed =
+    petType !== null &&
+    form.name.length > 0 &&
+    form.gender !== null &&
+    form.isNeutered !== null;
 
   useEffect(() => {
     return () => {
@@ -102,8 +114,8 @@ export default function OnboardingStep1() {
             <label style={{ fontSize: '11px', fontWeight: 600, color: '#1B4B8C', display: 'block', marginBottom: '8px' }}>동물 유형 *</label>
             <div className="flex gap-3">
               {[
-                { type: 'dog' as const, label: '강아지', emoji: '🐶' },
-                { type: 'cat' as const, label: '고양이', emoji: '🐱' },
+                { type: 'DOG' as const, label: '강아지', emoji: '🐶' },
+                { type: 'CAT' as const, label: '고양이', emoji: '🐱' },
               ].map(item => (
                 <button
                   key={item.type}
@@ -245,11 +257,14 @@ export default function OnboardingStep1() {
             <div>
               <label style={{ fontSize: '11px', fontWeight: 600, color: '#1B4B8C', display: 'block', marginBottom: '5px' }}>성별 *</label>
               <div className="flex gap-2">
-                {['수컷', '암컷'].map(g => (
-                  <button key={g} onClick={() => setForm({ ...form, gender: g })}
+                {[
+                  { value: 'MALE' as PetGender, label: '수컷', icon: '♂' },
+                  { value: 'FEMALE' as PetGender, label: '암컷', icon: '♀' },
+                ].map(g => (
+                  <button key={g.value} onClick={() => setForm({ ...form, gender: g.value })}
                     className="flex-1 rounded-xl transition-all"
-                    style={{ height: '44px', fontSize: '13px', fontWeight: 600, border: form.gender === g ? '2px solid #1B4B8C' : '1.5px solid #E0E0E0', backgroundColor: form.gender === g ? '#1B4B8C' : 'white', color: form.gender === g ? 'white' : '#9E9E9E' }}>
-                    {g === '수컷' ? '♂ 수컷' : '♀ 암컷'}
+                    style={{ height: '44px', fontSize: '13px', fontWeight: 600, border: form.gender === g.value ? '2px solid #1B4B8C' : '1.5px solid #E0E0E0', backgroundColor: form.gender === g.value ? '#1B4B8C' : 'white', color: form.gender === g.value ? 'white' : '#9E9E9E' }}>
+                    {g.icon} {g.label}
                   </button>
                 ))}
               </div>
@@ -259,11 +274,14 @@ export default function OnboardingStep1() {
             <div>
               <label style={{ fontSize: '11px', fontWeight: 600, color: '#1B4B8C', display: 'block', marginBottom: '5px' }}>중성화 여부 *</label>
               <div className="flex gap-2">
-                {['완료', '미완료'].map(n => (
-                  <button key={n} onClick={() => setForm({ ...form, neutered: n })}
+                {[
+                  { value: true, label: '완료' },
+                  { value: false, label: '미완료' },
+                ].map(n => (
+                  <button key={String(n.value)} onClick={() => setForm({ ...form, isNeutered: n.value })}
                     className="flex-1 rounded-xl transition-all"
-                    style={{ height: '44px', fontSize: '13px', fontWeight: 600, border: form.neutered === n ? '2px solid #1B4B8C' : '1.5px solid #E0E0E0', backgroundColor: form.neutered === n ? '#1B4B8C' : 'white', color: form.neutered === n ? 'white' : '#9E9E9E' }}>
-                    {n}
+                    style={{ height: '44px', fontSize: '13px', fontWeight: 600, border: form.isNeutered === n.value ? '2px solid #1B4B8C' : '1.5px solid #E0E0E0', backgroundColor: form.isNeutered === n.value ? '#1B4B8C' : 'white', color: form.isNeutered === n.value ? 'white' : '#9E9E9E' }}>
+                    {n.label}
                   </button>
                 ))}
               </div>

@@ -1,21 +1,28 @@
 import { createContext } from 'react';
 
-export type PetType = 'dog' | 'cat';
-export type VaccineKey = 'dhppl' | 'rabies' | 'kennel' | 'corona' | 'heartworm' | 'parasite';
+export type PetType = 'DOG' | 'CAT';
+export type PetGender = 'MALE' | 'FEMALE';
+export type VaccineCode =
+  | 'DHPPL'
+  | 'RABIES'
+  | 'KENNEL_COUGH'
+  | 'CORONA_ENTERITIS'
+  | 'HEARTWORM'
+  | 'PARASITE';
 
 export interface OnboardingStep1Data {
   petType: PetType | null;
   name: string;
   breed: string;
   birthdate: string;
-  gender: string;
-  neutered: string;
+  gender: PetGender | null;
+  isNeutered: boolean | null;
   weight: string;
   photoFile: File | null;
 }
 
 export interface OnboardingStep2Data {
-  vaccines: Record<VaccineKey, boolean>;
+  vaccines: Record<VaccineCode, boolean>;
   lastCheckup: string;
   diseases: string;
 }
@@ -36,20 +43,20 @@ export const initialStep1: OnboardingStep1Data = {
   name: '',
   breed: '',
   birthdate: '2021-03-15',
-  gender: '수컷',
-  neutered: '완료',
+  gender: 'MALE',
+  isNeutered: true,
   weight: '',
   photoFile: null,
 };
 
 export const initialStep2: OnboardingStep2Data = {
   vaccines: {
-    dhppl: true,
-    rabies: true,
-    kennel: false,
-    corona: false,
-    heartworm: false,
-    parasite: false,
+    DHPPL: true,
+    RABIES: true,
+    KENNEL_COUGH: false,
+    CORONA_ENTERITIS: false,
+    HEARTWORM: false,
+    PARASITE: false,
   },
   lastCheckup: '',
   diseases: '',
