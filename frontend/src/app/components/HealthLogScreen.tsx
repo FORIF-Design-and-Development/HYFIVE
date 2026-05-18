@@ -1,9 +1,46 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import { ChevronLeft, ChevronRight, Plus, Minus, Check, Weight, AlertCircle, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
+import {
+  ChevronLeft, ChevronRight, Plus, Minus, Check,
+  Weight, AlertCircle, TrendingUp, TrendingDown, Calendar, Loader2,
+} from 'lucide-react';
+import {
+  createHealthRecord, updateHealthRecord, listHealthRecords, getHealthRecord,
+  HealthApiError, HealthNetworkError,
+  type BowelStatus, type HealthRecord,
+} from '../api/health';
+
+// ── 상수 ──────────────────────────────────────────────────────────────────────
 
 type FecalState = '정상' | '무름' | '딱딱함' | '혈변' | '없음';
+
+const CURRENT_PET_ID = 1;
+
+const FECAL_TO_API: Record<FecalState, BowelStatus> = {
+  '정상': 'NORMAL', '무름': 'SOFT', '딱딱함': 'HARD', '혈변': 'BLOOD', '없음': 'NONE',
+};
+const API_TO_FECAL: Record<BowelStatus, FecalState> = {
+  NORMAL: '정상', SOFT: '무름', HARD: '딱딱함', BLOOD: '혈변', NONE: '없음',
+};
+
+function todayString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function toErrorMsg(e: unknown, fallback: string): string {
+  if (e instanceof HealthNetworkError) return '서버에 연결할 수 없어요. 네트워크를 확인해주세요.';
+  if (e instanceof HealthApiError) {
+    if (e.status === 401) return '로그인이 만료됐어요. 다시 로그인해주세요.';
+    if (e.status === 422) return `입력값 오류: ${e.message}`;
+    if (e.status >= 500) return `서버 오류 (${e.status}). 잠시 후 다시 시도해주세요.`;
+    return e.message;
+  }
+  return fallback;
+}
+
+// ── 정적 데이터 ───────────────────────────────────────────────────────────────
 
 interface MedItem {
   id: string;
@@ -13,107 +50,180 @@ interface MedItem {
   note: string;
 }
 
-interface DayRecord {
-  weight: number;
-  fecal: FecalState;
-  checkedMeds: string[];
-  symptoms: string[];
-}
-
 const defaultMeds: MedItem[] = [
   { id: 'heartworm', label: '심장사상충 예방약', emoji: '💊', checked: false, note: '' },
-  { id: 'glucosamine', label: '글루코사민', emoji: '🦴', checked: true, note: '1정 급여' },
-  { id: 'vitamin', label: '종합 비타민', emoji: '✨', checked: false, note: '' },
-  { id: 'probiotic', label: '유산균', emoji: '🦠', checked: false, note: '' },
+  { id: 'glucosamine', label: '글루코사민',       emoji: '🦴', checked: false, note: '' },
+  { id: 'vitamin',    label: '종합 비타민',        emoji: '✨', checked: false, note: '' },
+  { id: 'probiotic',  label: '유산균',             emoji: '🦠', checked: false, note: '' },
 ];
 
-const historyData: Record<string, DayRecord> = {
-  '2026-04-01': { weight: 28.3, fecal: '정상', checkedMeds: ['glucosamine'], symptoms: [] },
-  '2026-03-31': { weight: 28.4, fecal: '무름', checkedMeds: ['glucosamine', 'heartworm'], symptoms: ['cough'] },
-  '2026-03-30': { weight: 28.3, fecal: '정상', checkedMeds: ['glucosamine'], symptoms: [] },
-  '2026-03-29': { weight: 28.2, fecal: '정상', checkedMeds: ['glucosamine', 'vitamin'], symptoms: [] },
-  '2026-03-28': { weight: 28.1, fecal: '딱딱함', checkedMeds: ['glucosamine'], symptoms: ['appetite'] },
-};
-
-const TODAY = '2026-04-02';
-
 const fecalOptions: { value: FecalState; emoji: string; color: string }[] = [
-  { value: '정상', emoji: '✅', color: '#2E7D32' },
-  { value: '무름', emoji: '⚠️', color: '#F57C00' },
+  { value: '정상',   emoji: '✅', color: '#2E7D32' },
+  { value: '무름',   emoji: '⚠️', color: '#F57C00' },
   { value: '딱딱함', emoji: '🪨', color: '#795548' },
-  { value: '혈변', emoji: '🚨', color: '#B71C1C' },
-  { value: '없음', emoji: '❌', color: '#9E9E9E' },
+  { value: '혈변',   emoji: '🚨', color: '#B71C1C' },
+  { value: '없음',   emoji: '❌', color: '#9E9E9E' },
 ];
 
 const symptomChips = [
-  { id: 'vomit', label: '구토', emoji: '🤢' },
-  { id: 'cough', label: '기침', emoji: '😮‍💨' },
-  { id: 'itch', label: '가려움', emoji: '🐾' },
+  { id: 'vomit',    label: '구토',     emoji: '🤢' },
+  { id: 'cough',    label: '기침',     emoji: '😮‍💨' },
+  { id: 'itch',     label: '가려움',   emoji: '🐾' },
   { id: 'appetite', label: '식욕부진', emoji: '🍽️' },
   { id: 'lethargy', label: '기력저하', emoji: '😴' },
-  { id: 'limp', label: '跛行', emoji: '🦵' },
-  { id: 'eye', label: '눈 분비물', emoji: '👁️' },
-  { id: 'ear', label: '귀 긁음', emoji: '👂' },
+  { id: 'limp',     label: '跛行',     emoji: '🦵' },
+  { id: 'eye',      label: '눈 분비물', emoji: '👁️' },
+  { id: 'ear',      label: '귀 긁음',  emoji: '👂' },
 ];
 
 const DAYS_KR = ['일', '월', '화', '수', '목', '금', '토'];
+const TODAY = todayString();
 
 function formatDateLabel(dateStr: string) {
   const d = new Date(dateStr);
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  const dayName = DAYS_KR[d.getDay()];
-  return `${year}년 ${month}월 ${day}일 ${dayName}요일`;
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${DAYS_KR[d.getDay()]}요일`;
 }
+
+// ── 컴포넌트 ──────────────────────────────────────────────────────────────────
 
 export default function HealthLogScreen() {
   const navigate = useNavigate();
 
-  const [weight, setWeight] = useState(28.3);
+  // 오늘 날짜용 폼 상태 (편집 가능)
+  const [weight, setWeight] = useState(0);
   const [fecal, setFecal] = useState<FecalState>('정상');
   const [selectedSymptoms, setSelectedSymptoms] = useState<Set<string>>(new Set());
   const [meds, setMeds] = useState<MedItem[]>(defaultMeds);
-  const [saved, setSaved] = useState(false);
 
+  // 저장 상태
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // 조회 상태
+  const [loadedRecord, setLoadedRecord] = useState<HealthRecord | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [dateToRecordId, setDateToRecordId] = useState<Record<string, number>>({});
+  const [recordDates, setRecordDates] = useState<Set<string>>(new Set());
+
+  // 캘린더 상태
   const [selectedDate, setSelectedDate] = useState(TODAY);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [calMonth, setCalMonth] = useState({ year: 2026, month: 4 });
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  });
+
+  // ── Effect 1: 마운트 시 목록 조회 → 날짜→ID 맵 + 캘린더 dot 구성 ───────────
+  useEffect(() => {
+    listHealthRecords(CURRENT_PET_ID)
+      .then(records => {
+        const map: Record<string, number> = {};
+        const dates = new Set<string>();
+        records.forEach(r => {
+          const date = r.createdAt.slice(0, 10);
+          map[date] = r.healthRecordId;
+          dates.add(date);
+        });
+        setDateToRecordId(map);
+        setRecordDates(dates);
+      })
+      .catch(() => {
+        // 목록 실패는 무시 — 캘린더 dot만 안 보임
+      });
+  }, []);
+
+  // ── Effect 2: 날짜 변경 시 단건 조회 → 폼 반영 ──────────────────────────────
+  useEffect(() => {
+    const recordId = dateToRecordId[selectedDate];
+    if (recordId === undefined) {
+      // 해당 날짜에 기록 없음 → 폼 초기화
+      setLoadedRecord(null);
+      setLoadError('');
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setLoadError('');
+    setSaveError('');
+
+    getHealthRecord(recordId)
+      .then(record => {
+        if (cancelled) return;
+        setLoadedRecord(record);
+
+        // 오늘 날짜면 폼에 기존 값 채우기
+        if (selectedDate === TODAY) {
+          setWeight(record.weight);
+          setFecal(API_TO_FECAL[record.bowelStatus]);
+          setMeds(
+            defaultMeds.map(m => ({
+              ...m,
+              checked: record.medications.some(med => med.name === m.label && med.isTaken),
+            })),
+          );
+          setSelectedSymptoms(
+            new Set(
+              record.symptoms
+                .map(s => symptomChips.find(c => c.label === s)?.id)
+                .filter((id): id is string => Boolean(id)),
+            ),
+          );
+        }
+      })
+      .catch(e => {
+        if (cancelled) return;
+        // 404는 "기록 없음"이므로 조용히 처리
+        if (!(e instanceof HealthApiError && e.status === 404)) {
+          setLoadError(toErrorMsg(e, '기록을 불러오지 못했어요.'));
+        }
+        setLoadedRecord(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [selectedDate, dateToRecordId]);
+
+  // ── 파생 값 ───────────────────────────────────────────────────────────────────
 
   const isToday = selectedDate === TODAY;
-  const pastData = isToday ? null : historyData[selectedDate] ?? null;
 
-  const displayWeight = isToday ? weight : (pastData?.weight ?? weight);
-  const displayFecal: FecalState = isToday ? fecal : (pastData?.fecal ?? '없음');
-  const displayMeds = isToday ? meds : defaultMeds.map(m => ({
-    ...m,
-    checked: pastData?.checkedMeds.includes(m.id) ?? false,
-  }));
+  // 오늘: 폼 상태 / 과거: 로드된 레코드
+  const displayWeight = isToday ? weight : (loadedRecord?.weight ?? 0);
+  const displayFecal: FecalState = isToday
+    ? fecal
+    : loadedRecord ? API_TO_FECAL[loadedRecord.bowelStatus] : '정상';
+  const displayMeds = isToday
+    ? meds
+    : loadedRecord
+      ? defaultMeds.map(m => ({
+          ...m,
+          checked: loadedRecord.medications.some(med => med.name === m.label && med.isTaken),
+        }))
+      : defaultMeds;
   const displaySymptoms: Set<string> = isToday
     ? selectedSymptoms
-    : new Set(pastData?.symptoms ?? []);
+    : loadedRecord
+      ? new Set(
+          loadedRecord.symptoms
+            .map(s => symptomChips.find(c => c.label === s)?.id)
+            .filter((id): id is string => Boolean(id)),
+        )
+      : new Set();
 
-  const getPrevWeight = () => {
-    if (isToday) return historyData['2026-04-01']?.weight ?? null;
-    const sortedDates = Object.keys(historyData).sort();
-    const idx = sortedDates.indexOf(selectedDate);
-    return idx > 0 ? historyData[sortedDates[idx - 1]]?.weight ?? null : null;
-  };
-  const prevWeight = getPrevWeight();
-  const weightDiff = prevWeight !== null ? parseFloat((displayWeight - prevWeight).toFixed(2)) : 0;
-  const weightTrend = weightDiff > 0.15 ? 'up' : weightDiff < -0.15 ? 'down' : 'stable';
-  const trendConfig = {
-    up:     { label: '증가', bg: '#FFF3E0', color: '#E65100', Icon: TrendingUp },
-    down:   { label: '감소', bg: '#E3F2FD', color: '#1565C0', Icon: TrendingDown },
-    stable: { label: '유지', bg: '#E8F5E9', color: '#2E7D32', Icon: Minus },
-  }[weightTrend];
+  const completedCount = [weight > 0, meds.some(m => m.checked), true].filter(Boolean).length;
+
+  // ── 핸들러 ────────────────────────────────────────────────────────────────────
 
   const toggleSymptom = (id: string) => {
     if (!isToday) return;
     setSelectedSymptoms(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
   };
@@ -123,19 +233,47 @@ export default function HealthLogScreen() {
     setMeds(prev => prev.map(m => m.id === id ? { ...m, checked: !m.checked } : m));
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError('');
+
+    const body = {
+      petId: CURRENT_PET_ID,
+      weight,
+      bowelStatus: FECAL_TO_API[fecal],
+      medications: meds.map(m => ({ name: m.label, isTaken: m.checked })),
+      symptoms: Array.from(selectedSymptoms)
+        .map(id => symptomChips.find(c => c.id === id)?.label)
+        .filter((v): v is string => Boolean(v)),
+    };
+
+    try {
+      // loadedRecord가 있으면 수정(PUT), 없으면 신규 등록(POST)
+      const result = loadedRecord
+        ? await updateHealthRecord(loadedRecord.healthRecordId, body)
+        : await createHealthRecord(body);
+
+      setLoadedRecord(result);
+      // 신규 등록 후 ID 맵 업데이트 → 이후 저장은 자동으로 PUT 사용
+      if (!loadedRecord) {
+        setDateToRecordId(prev => ({ ...prev, [TODAY]: result.healthRecordId }));
+        setRecordDates(prev => new Set([...prev, TODAY]));
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError(toErrorMsg(e, '저장에 실패했어요. 다시 시도해주세요.'));
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const completedCount = [
-    true,
-    meds.some(m => m.checked),
-    fecal !== null,
-  ].filter(Boolean).length;
+  // ── 캘린더 렌더 ───────────────────────────────────────────────────────────────
 
   const getDaysInMonth = (y: number, m: number) => new Date(y, m, 0).getDate();
-  const getFirstDay = (y: number, m: number) => new Date(y, m - 1, 1).getDay();
+  const getFirstDay   = (y: number, m: number) => new Date(y, m - 1, 1).getDay();
 
   const renderCalendar = () => {
     const { year, month } = calMonth;
@@ -147,17 +285,17 @@ export default function HealthLogScreen() {
     ];
     while (cells.length % 7 !== 0) cells.push(null);
 
-    const prevMonth = () => setCalMonth(p => p.month === 1 ? { year: p.year - 1, month: 12 } : { ...p, month: p.month - 1 });
-    const nextMonth = () => setCalMonth(p => p.month === 12 ? { year: p.year + 1, month: 1 } : { ...p, month: p.month + 1 });
+    const goPrev = () => setCalMonth(p => p.month === 1  ? { year: p.year - 1, month: 12 } : { ...p, month: p.month - 1 });
+    const goNext = () => setCalMonth(p => p.month === 12 ? { year: p.year + 1, month: 1  } : { ...p, month: p.month + 1 });
 
     return (
       <div className="bg-white rounded-2xl p-3" style={{ border: '1px solid #E0E0E0' }}>
         <div className="flex items-center justify-between mb-2">
-          <button onClick={prevMonth} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F0F0F0' }}>
+          <button onClick={goPrev} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F0F0F0' }}>
             <ChevronLeft size={14} style={{ color: '#666' }} />
           </button>
           <span style={{ fontSize: '13px', fontWeight: 700, color: '#1C1C1C' }}>{year}년 {month}월</span>
-          <button onClick={nextMonth} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F0F0F0' }}>
+          <button onClick={goNext} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: '#F0F0F0' }}>
             <ChevronRight size={14} style={{ color: '#666' }} />
           </button>
         </div>
@@ -174,10 +312,10 @@ export default function HealthLogScreen() {
           {cells.map((day, idx) => {
             if (!day) return <div key={idx} />;
             const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            const hasRecord = dateStr in historyData || dateStr === TODAY;
-            const isSelected = dateStr === selectedDate;
+            const hasRecord = recordDates.has(dateStr) || dateStr === TODAY;
+            const isSelected  = dateStr === selectedDate;
             const isTodayDate = dateStr === TODAY;
-            const isFuture = dateStr > TODAY;
+            const isFuture    = dateStr > TODAY;
             const dow = (firstDay + day - 1) % 7;
 
             return (
@@ -210,11 +348,13 @@ export default function HealthLogScreen() {
     );
   };
 
+  // ── JSX ───────────────────────────────────────────────────────────────────────
+
   return (
     <MobileFrame>
       <div className="h-full flex flex-col" style={{ fontFamily: "'Noto Sans KR', sans-serif", backgroundColor: '#F5F7FC' }}>
 
-        {/* Header */}
+        {/* 헤더 */}
         <div className="flex-shrink-0 bg-white flex items-center px-4" style={{ height: '52px', borderBottom: '1px solid #E8E8E8' }}>
           <button onClick={() => navigate('/record')} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: '#1B4B8C' }}>
             <ChevronLeft size={22} />
@@ -232,7 +372,7 @@ export default function HealthLogScreen() {
 
         <div className="flex-1 overflow-y-auto">
 
-          {/* Date + Pet */}
+          {/* 날짜 + 펫 */}
           <div className="px-5 pt-4 pb-2 flex items-center justify-between">
             <button
               onClick={() => setShowCalendar(v => !v)}
@@ -252,13 +392,42 @@ export default function HealthLogScreen() {
 
           <div className="px-5 space-y-3 pb-6">
 
-            {/* Calendar dropdown */}
+            {/* 캘린더 드롭다운 */}
             {showCalendar && renderCalendar()}
 
-            {/* Past date banner */}
-            {!isToday && (
+            {/* 로딩 */}
+            {loading && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
+                <Loader2 size={14} className="animate-spin" style={{ color: '#1B4B8C' }} />
+                <span style={{ fontSize: '11px', color: '#1B4B8C', fontWeight: 600 }}>기록을 불러오는 중…</span>
+              </div>
+            )}
+
+            {/* 조회 오류 */}
+            {loadError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#FFEBEE', border: '1px solid #FFCDD2' }}>
+                <AlertCircle size={14} style={{ color: '#C62828' }} />
+                <span style={{ fontSize: '11px', color: '#C62828', fontWeight: 600 }}>{loadError}</span>
+              </div>
+            )}
+
+            {/* 저장 오류 */}
+            {saveError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#FFEBEE', border: '1px solid #FFCDD2' }}>
+                <AlertCircle size={14} style={{ color: '#C62828' }} />
+                <span style={{ fontSize: '11px', color: '#C62828', fontWeight: 600 }}>{saveError}</span>
+              </div>
+            )}
+
+            {/* 과거 날짜 배너 */}
+            {!isToday && !loading && loadedRecord && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#F3F0FF', border: '1px solid #D4C9F5' }}>
                 <span style={{ fontSize: '11px', color: '#5E35B1', fontWeight: 600 }}>📖 과거 기록 보기 (읽기 전용)</span>
+              </div>
+            )}
+            {!isToday && !loading && !loadedRecord && !loadError && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#F5F5F5', border: '1px solid #E0E0E0' }}>
+                <span style={{ fontSize: '11px', color: '#9E9E9E', fontWeight: 600 }}>📋 이 날은 기록이 없어요</span>
               </div>
             )}
 
@@ -281,8 +450,10 @@ export default function HealthLogScreen() {
                   </button>
                 )}
                 <div className="flex-1 text-center">
-                  <span style={{ fontSize: '36px', fontWeight: 700, color: '#1B4B8C' }}>{displayWeight.toFixed(1)}</span>
-                  <span style={{ fontSize: '14px', color: '#9E9E9E', marginLeft: '4px' }}>kg</span>
+                  <span style={{ fontSize: '36px', fontWeight: 700, color: '#1B4B8C' }}>
+                    {displayWeight > 0 ? displayWeight.toFixed(1) : '-'}
+                  </span>
+                  {displayWeight > 0 && <span style={{ fontSize: '14px', color: '#9E9E9E', marginLeft: '4px' }}>kg</span>}
                 </div>
                 {isToday && (
                   <button
@@ -294,15 +465,11 @@ export default function HealthLogScreen() {
                   </button>
                 )}
               </div>
-              <div className="mt-3 flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: trendConfig.bg }}>
+              {/* 체중 추이 (전날 비교 데이터 없을 시 '유지' 표시) */}
+              <div className="mt-3 flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: '#E8F5E9' }}>
                 <div className="flex items-center gap-2">
-                  <trendConfig.Icon size={15} style={{ color: trendConfig.color }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: trendConfig.color }}>{trendConfig.label}</span>
-                  {prevWeight !== null && (
-                    <span style={{ fontSize: '11px', color: trendConfig.color, opacity: 0.75 }}>
-                      ({weightDiff > 0 ? '+' : ''}{weightDiff.toFixed(1)} kg)
-                    </span>
-                  )}
+                  <TrendingUp size={15} style={{ color: '#2E7D32' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#2E7D32' }}>유지</span>
                 </div>
                 <span style={{ fontSize: '10px', color: '#9E9E9E' }}>전날 대비</span>
               </div>
@@ -325,7 +492,9 @@ export default function HealthLogScreen() {
                   >
                     <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
                       style={{ backgroundColor: med.checked ? '#4CAF50' : '#E0E0E0' }}>
-                      {med.checked ? <Check size={14} style={{ color: 'white' }} /> : <span style={{ fontSize: '12px' }}>{med.emoji}</span>}
+                      {med.checked
+                        ? <Check size={14} style={{ color: 'white' }} />
+                        : <span style={{ fontSize: '12px' }}>{med.emoji}</span>}
                     </div>
                     <div className="flex-1">
                       <p style={{ fontSize: '12px', fontWeight: 600, color: med.checked ? '#2E7D32' : '#9E9E9E' }}>{med.label}</p>
@@ -355,7 +524,9 @@ export default function HealthLogScreen() {
                     }}
                   >
                     <span style={{ fontSize: '18px' }}>{opt.emoji}</span>
-                    <span style={{ fontSize: '9px', fontWeight: 700, color: displayFecal === opt.value ? opt.color : '#BDBDBD', marginTop: '3px' }}>{opt.value}</span>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: displayFecal === opt.value ? opt.color : '#BDBDBD', marginTop: '3px' }}>
+                      {opt.value}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -395,28 +566,39 @@ export default function HealthLogScreen() {
               {displaySymptoms.size > 0 && (
                 <div className="mt-3 p-2 rounded-lg" style={{ backgroundColor: '#FFF3E0' }}>
                   <p style={{ fontSize: '10px', color: '#E65100' }}>
-                    ⚠️ {displaySymptoms.size}가지 증상이 선택되었습니다. 증상이 지속되면 수의사 상담을 권장해요.
+                    ⚠️ {displaySymptoms.size}가지 증상 선택됨. 지속되면 수의사 상담을 권장해요.
                   </p>
                 </div>
               )}
             </div>
 
-            {/* 5. 저장 (오늘만) */}
+            {/* 5. 저장 버튼 (오늘만) */}
             {isToday && (
               <button
-                onClick={handleSave}
+                onClick={() => void handleSave()}
+                disabled={saving}
                 className="w-full rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
                 style={{
                   height: '52px',
-                  background: saved ? 'linear-gradient(135deg, #2E7D32, #388E3C)' : 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)',
+                  background: saved
+                    ? 'linear-gradient(135deg, #2E7D32, #388E3C)'
+                    : 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)',
                   color: 'white',
                   fontSize: '15px',
                   fontWeight: 700,
                   border: 'none',
                   boxShadow: '0 4px 16px rgba(27,75,140,0.35)',
+                  opacity: saving ? 0.6 : 1,
+                  cursor: saving ? 'not-allowed' : 'pointer',
                 }}
               >
-                {saved ? <><Check size={18} /> 저장 완료!</> : '❤️ 건강 기록 저장하기'}
+                {saved
+                  ? <><Check size={18} /> 저장 완료!</>
+                  : saving
+                    ? <><Loader2 size={16} className="animate-spin" /> 저장 중…</>
+                    : loadedRecord
+                      ? '✏️ 건강 기록 수정하기'
+                      : '❤️ 건강 기록 저장하기'}
               </button>
             )}
 
