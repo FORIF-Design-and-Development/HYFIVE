@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import {
   ChevronLeft, ChevronRight, Plus, Minus, Check,
-  Weight, AlertCircle, TrendingUp, TrendingDown, Calendar, Loader2,
+  Weight, AlertCircle, Calendar, Loader2,
 } from 'lucide-react';
 import {
   createHealthRecord, updateHealthRecord, listHealthRecords, getHealthRecord,
@@ -464,14 +464,6 @@ export default function HealthLogScreen() {
                     <Plus size={16} style={{ color: 'white' }} />
                   </button>
                 )}
-              </div>
-              {/* 체중 추이 (전날 비교 데이터 없을 시 '유지' 표시) */}
-              <div className="mt-3 flex items-center justify-between px-3 py-2.5 rounded-xl" style={{ backgroundColor: '#E8F5E9' }}>
-                <div className="flex items-center gap-2">
-                  <TrendingUp size={15} style={{ color: '#2E7D32' }} />
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#2E7D32' }}>유지</span>
-                </div>
-                <span style={{ fontSize: '10px', color: '#9E9E9E' }}>전날 대비</span>
               </div>
             </div>
 
