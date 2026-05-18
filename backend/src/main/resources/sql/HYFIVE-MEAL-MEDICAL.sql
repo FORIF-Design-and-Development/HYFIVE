@@ -1,0 +1,86 @@
+CREATE TABLE medical_records (
+                                 medical_record_id bigint NOT NULL,
+                                 pet_id bigint NOT NULL,
+                                 visit_date date NOT NULL,
+                                 clinic_name varchar(50) NOT NULL,
+                                 total_cost integer NOT NULL,
+                                diagnosis varchar(255) NOT NULL,
+                                content varchar(255) NOT NULL,
+                                 notes text,
+                                 created_at timestamp DEFAULT current_timestamp NOT NULL,
+                                 updated_at timestamp
+);
+
+ALTER TABLE medical_records
+    ADD CONSTRAINT pk_medical_records
+        PRIMARY KEY (medical_record_id);
+
+ALTER TABLE medical_records
+    ADD CONSTRAINT fk_medical_records_pet
+        FOREIGN KEY (pet_id)
+            REFERENCES pets(pet_id);
+
+-- updated_at 하기 위해서 trigger 만들어야함
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+    RETURNS trigger AS $$
+BEGIN
+    NEW.updated_at = current_timestamp;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER trg_medical_records_updated_at
+    BEFORE UPDATE ON medical_records
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
+
+-- image 저장 table
+
+CREATE TABLE medical_record_images (
+                                       image_id bigint NOT NULL,
+                                       image_url varchar(500),
+                                       medical_record_id bigint NOT NULL
+);
+
+ALTER TABLE medical_record_images
+    ADD CONSTRAINT pk_medical_record_images
+        PRIMARY KEY (image_id);
+
+ALTER TABLE medical_record_images
+    ADD CONSTRAINT fk_medical_record_images_medical_record
+        FOREIGN KEY (medical_record_id)
+            REFERENCES medical_records(medical_record_id);
+
+--  식사 기록
+CREATE TABLE meal_records (
+                              meal_record_id bigint NOT NULL,
+                              time char(10) NOT NULL,
+                              type char(20) NOT NULL,
+                              amount integer NOT NULL,
+                              is_left char(10) NOT NULL,
+                              memo text,
+                              created_at timestamp DEFAULT current_timestamp NOT NULL,
+                              updated_at timestamp,
+                              pet_id bigint NOT NULL
+);
+
+COMMENT ON COLUMN meal_records.time IS 'MORNING/LUNCH/DINNER/SNACK';
+
+COMMENT ON COLUMN meal_records.type IS '건식/습식/혼합';
+
+COMMENT ON COLUMN meal_records.is_left IS 'NONE/FEW/HALF';
+
+ALTER TABLE meal_records
+    ADD CONSTRAINT pk_meal_records
+        PRIMARY KEY (meal_record_id);
+
+ALTER TABLE meal_records
+    ADD CONSTRAINT fk_meal_records_pet
+        FOREIGN KEY (pet_id)
+            REFERENCES pets(pet_id);
+
+CREATE TRIGGER trg_meal_records_updated_at
+    BEFORE UPDATE ON meal_records
+    FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();
