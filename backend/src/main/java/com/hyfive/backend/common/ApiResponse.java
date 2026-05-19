@@ -14,4 +14,19 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> success(T data) {
         return new ApiResponse<>(data, null, null);
     }
+
+    public static ApiResponse<Object> error(int code, String message) {
+        return new ApiResponse<>(
+                null,
+                new ErrorResponse(code, message),
+                null
+        );
+    }
+
+    @Getter
+    @AllArgsConstructor
+    public static class ErrorResponse {
+        private int code;
+        private String message;
+    }
 }
