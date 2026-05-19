@@ -41,15 +41,39 @@ const mealEmoji: Record<MealTime, string> = {
 const foodTypes: FoodType[] = ['건식', '습식', '혼합'];
 
 const TIME_MAP: Record<MealTime, string> = {
-  아침: 'BREAKFAST',
+  아침: 'MORNING',
   점심: 'LUNCH',
   저녁: 'DINNER',
 };
 
 const TIME_REVERSE_MAP: Record<string, MealTime> = {
-  BREAKFAST: '아침',
+  MORNING: '아침',
   LUNCH: '점심',
   DINNER: '저녁',
+};
+
+const TYPE_MAP: Record<FoodType, string> = {
+  건식: 'DRY',
+  습식: 'WET',
+  혼합: 'MIX',
+};
+
+const TYPE_REVERSE_MAP: Record<string, FoodType> = {
+  DRY: '건식',
+  WET: '습식',
+  MIX: '혼합',
+};
+
+const IS_LEFT_MAP: Record<'없음' | '소량' | '절반이상', string> = {
+  없음: 'NONE',
+  소량: 'FEW',
+  절반이상: 'HALF',
+};
+
+const IS_LEFT_REVERSE_MAP: Record<string, '없음' | '소량' | '절반이상'> = {
+  NONE: '없음',
+  FEW: '소량',
+  HALF: '절반이상',
 };
 
 function getToday(): string {
@@ -62,10 +86,10 @@ function apiItemsToEntries(items: MealApiItem[]): Partial<Record<MealTime, MealE
     const mealTime = TIME_REVERSE_MAP[item.time];
     if (!mealTime) continue;
     result[mealTime] = {
-      foodType: (item.type as FoodType) || '건식',
+      foodType: TYPE_REVERSE_MAP[item.type] ?? '건식',
       amount: parseInt(item.amount) || 180,
-      hasLeftover: item.is_left !== '없음',
-      leftoverAmount: (item.is_left as '없음' | '소량' | '절반이상') || '없음',
+      hasLeftover: item.is_left !== 'NONE',
+      leftoverAmount: IS_LEFT_REVERSE_MAP[item.is_left] ?? '없음',
       note: item.memo ?? '',
       done: true,
     };
@@ -179,9 +203,9 @@ export default function MealLogScreen() {
       try {
         const isNew = await uploadMeal({
           time: TIME_MAP[activeTab],
-          type: entry.foodType,
+          type: TYPE_MAP[entry.foodType],
           amount: String(entry.amount),
-          is_left: entry.leftoverAmount,
+          is_left: IS_LEFT_MAP[entry.leftoverAmount],
           memo: entry.note,
         });
         update({ done: true });
@@ -478,7 +502,7 @@ export default function MealLogScreen() {
                   <textarea
                     value={entry.note}
                     onChange={e => update({ note: e.target.value })}
-                    placeholder="특이사항을 입력하세요 (예: 음수량 500ml)"
+                    placeholder="특이사항을 입력하세요 (예: 간식 : 수제육포 1개, 음수량 500ml 등 )"
                     readOnly={!isToday}
                     className="w-full rounded-xl p-3 resize-none"
                     rows={3}
