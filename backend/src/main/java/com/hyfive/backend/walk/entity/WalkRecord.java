@@ -32,6 +32,9 @@ public class WalkRecord {
     @Column(name = "calories", columnDefinition = "int default 0")
     private Integer calories;
 
+    @Column(name = "map_image_url")
+    private String mapImageUrl;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -48,5 +51,9 @@ public class WalkRecord {
     @PreUpdate
     protected void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    public void updateMapImageUrl(String mapImageUrl) {
+        this.mapImageUrl = mapImageUrl;
     }
 }

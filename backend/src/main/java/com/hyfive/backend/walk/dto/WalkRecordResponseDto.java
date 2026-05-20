@@ -13,6 +13,7 @@ public class WalkRecordResponseDto {
     private LocalDateTime endedAt;
     private Float distanceKm;
     private Integer calories;
+    private String mapImageUrl;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -23,6 +24,7 @@ public class WalkRecordResponseDto {
         this.endedAt = walkRecord.getEndedAt();
         this.distanceKm = walkRecord.getDistanceKm();
         this.calories = walkRecord.getCalories();
+        this.mapImageUrl = walkRecord.getMapImageUrl();
         this.createdAt = walkRecord.getCreatedAt();
         this.updatedAt = walkRecord.getUpdatedAt();
     }

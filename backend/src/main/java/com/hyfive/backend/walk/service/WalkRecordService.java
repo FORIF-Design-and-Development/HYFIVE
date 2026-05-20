@@ -1,5 +1,6 @@
 package com.hyfive.backend.walk.service;
 
+import com.hyfive.backend.S3Service;
 import com.hyfive.backend.walk.dto.WalkRecordRequestDto;
 import com.hyfive.backend.walk.dto.WalkRecordResponseDto;
 import com.hyfive.backend.walk.entity.WalkRecord;
@@ -7,7 +8,9 @@ import com.hyfive.backend.walk.repository.WalkRecordRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -16,6 +19,7 @@ import java.util.stream.Collectors;
 public class WalkRecordService {
 
     private final WalkRecordRepository walkRecordRepository;
+    private final S3Service s3Service;
 
     // 산책기록 등록
     @Transactional
@@ -38,5 +42,16 @@ public class WalkRecordService {
                 .stream()
                 .map(WalkRecordResponseDto::new)
                 .collect(Collectors.toList());
+    }
+
+    // 동선 이미지 업로드
+    @Transactional
+    public WalkRecordResponseDto uploadMapImage(Long walkId, MultipartFile image) throws IOException {
+        WalkRecord walkRecord = walkRecordRepository.findById(walkId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 산책기록입니다."));
+
+        String imageUrl = s3Service.upload(image);
+        walkRecord.updateMapImageUrl(imageUrl);
+        return new WalkRecordResponseDto(walkRecord);
     }
 }
