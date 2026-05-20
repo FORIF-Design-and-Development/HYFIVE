@@ -20,6 +20,13 @@ ALTER TABLE medical_records
         FOREIGN KEY (pet_id)
             REFERENCES pets(pet_id);
 
+ALTER TABLE medical_records
+    ADD COLUMN type varchar(100) not null;
+
+ALTER TABLE medical_records
+    ADD CONSTRAINT chk_medical_records_type
+        CHECK (type IN ('TREATMENT', 'CHECKUP', 'VACCINATION', 'SURGERY'));
+
 -- updated_at 하기 위해서 trigger 만들어야함
 CREATE OR REPLACE FUNCTION update_updated_at_column()
     RETURNS trigger AS $$
@@ -49,6 +56,22 @@ ALTER TABLE medical_record_images
 
 ALTER TABLE medical_record_images
     ADD CONSTRAINT fk_medical_record_images_medical_record
+        FOREIGN KEY (medical_record_id)
+            REFERENCES medical_records(medical_record_id);
+
+CREATE TABLE prescriptions (
+                               prescription_id bigint NOT NULL,
+                               content varchar(255) NOT NULL,
+                               period integer NOT NULL,
+                               medical_record_id bigint NOT NULL
+);
+
+ALTER TABLE prescriptions
+    ADD CONSTRAINT pk_prescriptions
+        PRIMARY KEY (prescription_id);
+
+ALTER TABLE prescriptions
+    ADD CONSTRAINT fk_prescriptions_medical_record
         FOREIGN KEY (medical_record_id)
             REFERENCES medical_records(medical_record_id);
 
