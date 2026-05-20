@@ -17,6 +17,7 @@ public class WalkRecordService {
 
     private final WalkRecordRepository walkRecordRepository;
 
+    // 산책기록 등록
     @Transactional
     public WalkRecordResponseDto createWalkRecord(WalkRecordRequestDto requestDto) {
         WalkRecord walkRecord = WalkRecord.builder()
@@ -30,6 +31,7 @@ public class WalkRecordService {
         return new WalkRecordResponseDto(walkRecordRepository.save(walkRecord));
     }
 
+    // 산책기록 목록 조회
     @Transactional(readOnly = true)
     public List<WalkRecordResponseDto> getWalkRecords(Long petId) {
         return walkRecordRepository.findByPetIdOrderByStartAtDesc(petId)

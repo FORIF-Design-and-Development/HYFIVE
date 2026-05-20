@@ -21,5 +21,4 @@ public class WalkRecordRequestDto {
     private Float distanceKm;
 
     private Integer calories;
-
 }
