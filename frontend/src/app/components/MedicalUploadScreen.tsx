@@ -1,21 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import { ChevronLeft, Camera, Sparkles, CheckCircle2, Edit3, ChevronDown, X } from 'lucide-react';
-import { useMedicalRecords } from '../context/useMedicalRecords';
-import type { MedicalRecord } from '../context/medicalRecords';
+import { ChevronLeft, Camera, Sparkles, CheckCircle2, Edit3, ChevronDown, X, AlertCircle } from 'lucide-react';
+import { analyzeMedicalOcr, uploadMedicalRecord, type MedicalTypeEnum } from '../api/medical';
 
 type ScreenState = 'upload' | 'analyzing' | 'result';
 type MedicalType = '진료' | '예방접종' | '수술' | '건강검진' | '기타';
 
 const MEDICAL_TYPES: MedicalType[] = ['진료', '예방접종', '수술', '건강검진', '기타'];
 
-const MOCK_OCR = {
-  hospital: '하나동물병원',
-  date: '2026-03-26',
-  items: '피부과 진료, 약 처방 (3종)',
-  diagnosis: '아토피성 피부염',
-  amount: '48,300',
+const TYPE_MAP: Record<MedicalType, MedicalTypeEnum> = {
+  '진료': 'TREATMENT',
+  '예방접종': 'VACCINATION',
+  '수술': 'SURGERY',
+  '건강검진': 'CHECKUP',
+  '기타': 'OTHER',
 };
 
 const analyzeSteps = [
@@ -25,11 +24,18 @@ const analyzeSteps = [
   '진료 데이터 구조화 완료!',
 ];
 
+type OcrData = {
+  hospital: string;
+  date: string;
+  items: string;
+  diagnosis: string;
+  amount: string;
+};
+
 export default function MedicalUploadScreen() {
   const navigate = useNavigate();
   const receiptInputRef = useRef<HTMLInputElement>(null);
   const receiptPreviewUrlsRef = useRef<string[]>([]);
-  const { addRecord } = useMedicalRecords();
 
   const [screenState, setScreenState] = useState<ScreenState>('upload');
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -37,8 +43,12 @@ export default function MedicalUploadScreen() {
   const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
   const [receiptPreviewUrls, setReceiptPreviewUrls] = useState<string[]>([]);
   const [analyzeStep, setAnalyzeStep] = useState(0);
-  const [ocrData, setOcrData] = useState(MOCK_OCR);
+  const [ocrData, setOcrData] = useState<OcrData>({ hospital: '', date: '', items: '', diagnosis: '', amount: '' });
   const [showTypePicker, setShowTypePicker] = useState(false);
+  const [storedBase64, setStoredBase64] = useState<string[]>([]);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -71,24 +81,6 @@ export default function MedicalUploadScreen() {
     });
   };
 
-  const handleAnalyze = () => {
-    setOcrData({
-      ...MOCK_OCR,
-      date: selectedDate,
-    });
-    setScreenState('analyzing');
-    setAnalyzeStep(0);
-    let step = 0;
-    const interval = setInterval(() => {
-      step++;
-      setAnalyzeStep(step);
-      if (step >= analyzeSteps.length - 1) {
-        clearInterval(interval);
-        setTimeout(() => setScreenState('result'), 600);
-      }
-    }, 700);
-  };
-
   const readAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result ?? ''));
@@ -96,23 +88,65 @@ export default function MedicalUploadScreen() {
     reader.readAsDataURL(file);
   });
 
-  const handleSave = async () => {
-    const attachments = await Promise.all(receiptFiles.map(readAsDataUrl));
-    const newRecord: MedicalRecord = {
-      id: Date.now(),
-      date: ocrData.date,
-      hospital: ocrData.hospital,
-      type: medType,
-      diagnosis: ocrData.diagnosis,
-      items: ocrData.items,
-      amount: ocrData.amount,
-      memo: 'AI 자동분석 임시 메모입니다. 필요하면 진료기록 페이지에서 수정해주세요.',
-      prescriptions: ['임시 처방 데이터 1', '임시 처방 데이터 2'],
-      attachments,
-    };
+  const handleAnalyze = async () => {
+    setScreenState('analyzing');
+    setAnalyzeStep(0);
+    setOcrError(null);
 
-    addRecord(newRecord);
-    navigate('/medical-records', { replace: true });
+    let localStep = 0;
+    const interval = setInterval(() => {
+      localStep = Math.min(localStep + 1, analyzeSteps.length - 2);
+      setAnalyzeStep(localStep);
+    }, 800);
+
+    try {
+      const base64List = await Promise.all(receiptFiles.map(readAsDataUrl));
+      const imageBase64 = base64List.map(b => {
+        const idx = b.indexOf(',');
+        return idx >= 0 ? b.substring(idx + 1) : b;
+      });
+      setStoredBase64(imageBase64);
+
+      const result = await analyzeMedicalOcr(selectedDate, TYPE_MAP[medType], imageBase64);
+
+      clearInterval(interval);
+
+      const { extracted } = result;
+      setOcrData({
+        hospital: extracted.clinicName ?? '',
+        date: extracted.visitDate || selectedDate,
+        items: extracted.content ?? '',
+        diagnosis: extracted.diagnosis ?? '',
+        amount: extracted.totalCost ?? '',
+      });
+    } catch (e) {
+      clearInterval(interval);
+      setOcrData({ hospital: '', date: selectedDate, items: '', diagnosis: '', amount: '' });
+      setOcrError(e instanceof Error ? e.message : 'OCR 분석에 실패했습니다. 직접 입력해주세요.');
+    }
+
+    setAnalyzeStep(analyzeSteps.length - 1);
+    setTimeout(() => setScreenState('result'), 600);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await uploadMedicalRecord({
+        type: TYPE_MAP[medType],
+        clinicName: ocrData.hospital,
+        visitDate: ocrData.date,
+        content: ocrData.items,
+        diagnosis: ocrData.diagnosis,
+        totalCost: ocrData.amount,
+        image: storedBase64,
+      });
+      navigate('/medical-records', { replace: true });
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : '저장에 실패했습니다.');
+      setSaving(false);
+    }
   };
 
   return (
@@ -292,14 +326,24 @@ export default function MedicalUploadScreen() {
             </div>
 
             <div className="px-3 py-4 space-y-4">
-              {/* OCR success banner */}
-              <div className="rounded-xl p-3 flex items-center gap-3" style={{ backgroundColor: '#E8F3E9', border: '1px solid #A3D6A7' }}>
-                <CheckCircle2 size={20} style={{ color: '#4CAF30', flexShrink: 0 }} />
-                <div>
-                  <p style={{ fontSize: '12px', fontWeight: 700, color: '#2E7D32' }}>AI 분석 완료!</p>
-                  <p style={{ fontSize: '10px', color: '#388E3C' }}>영수증에서 진료 정보를 자동 추출했어요. 확인 후 수정해주세요.</p>
+              {/* Banner */}
+              {ocrError ? (
+                <div className="rounded-xl p-3 flex items-center gap-3" style={{ backgroundColor: '#FFF3E0', border: '1px solid #FFCC80' }}>
+                  <AlertCircle size={20} style={{ color: '#E65100', flexShrink: 0 }} />
+                  <div>
+                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#BF360C' }}>OCR 분석 실패</p>
+                    <p style={{ fontSize: '10px', color: '#E64A19' }}>{ocrError}</p>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="rounded-xl p-3 flex items-center gap-3" style={{ backgroundColor: '#E8F3E9', border: '1px solid #A3D6A7' }}>
+                  <CheckCircle2 size={20} style={{ color: '#4CAF30', flexShrink: 0 }} />
+                  <div>
+                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#2E7D32' }}>AI 분석 완료!</p>
+                    <p style={{ fontSize: '10px', color: '#388E3C' }}>영수증에서 진료 정보를 자동 추출했어요. 확인 후 수정해주세요.</p>
+                  </div>
+                </div>
+              )}
 
               {/* OCR Result Fields */}
               <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E0E0E0' }}>
@@ -323,7 +367,7 @@ export default function MedicalUploadScreen() {
                       </div>
                       <input
                         type={field.key === 'date' ? 'date' : 'text'}
-                        value={ocrData[field.key as keyof typeof ocrData]}
+                        value={ocrData[field.key as keyof OcrData]}
                         onChange={e => setOcrData({ ...ocrData, [field.key]: e.target.value })}
                         className="w-full rounded-xl px-3"
                         style={{ height: '40px', fontSize: '12px', fontWeight: 600, border: '1.3px solid #C3D8EE', backgroundColor: '#F3F8FE', color: '#0D2B3E', outline: 'none' }}
@@ -351,10 +395,19 @@ export default function MedicalUploadScreen() {
             </div>
 
             <div className="px-3 pb-6 space-y-2">
-              <button onClick={handleSave}
-                className="w-full rounded-xl transition-all active:scale-[0.98]"
-                style={{ height: '30px', background: 'linear-gradient(133deg, #1B4B8C 0%, #2E6DB4 100%)', color: 'white', fontSize: '14px', fontWeight: 700, boxShadow: '0 4px 16px rgba(27,73,140,0.3)', border: 'none' }}>
-                진료 기록 저장하기
+              {saveError && (
+                <div className="rounded-xl p-3 flex items-center gap-2" style={{ backgroundColor: '#FFEBEE', border: '1px solid #FFCDD2' }}>
+                  <AlertCircle size={14} style={{ color: '#C62828', flexShrink: 0 }} />
+                  <p style={{ fontSize: '11px', color: '#C62828' }}>{saveError}</p>
+                </div>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full rounded-xl transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                style={{ height: '30px', background: saving ? '#9E9E9E' : 'linear-gradient(133deg, #1B4B8C 0%, #2E6DB4 100%)', color: 'white', fontSize: '14px', fontWeight: 700, boxShadow: saving ? 'none' : '0 4px 16px rgba(27,73,140,0.3)', border: 'none', cursor: saving ? 'not-allowed' : 'pointer' }}>
+                {saving && <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: 'rgba(255,255,255,0.4)', borderTopColor: 'white' }} />}
+                {saving ? '저장 중...' : '진료 기록 저장하기'}
               </button>
               <button onClick={() => setScreenState('upload')} style={{ width: '100%', textAlign: 'center', fontSize: '13px', color: '#9E9E9E', background: 'none', border: 'none', cursor: 'pointer', paddingTop: '4px' }}>
                 다시 업로드하기

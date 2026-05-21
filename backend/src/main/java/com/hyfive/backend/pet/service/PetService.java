@@ -52,7 +52,8 @@ public class PetService {
                 request.gender(),
                 request.isNeutered(),
                 request.lastCheckupDate(),
-                request.preExistingIllness()
+                request.preExistingIllness(),
+                request.profileImageUrl()
         );
 
         Pet savedPet = petRepository.save(pet);

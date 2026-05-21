@@ -33,6 +33,8 @@ public record CreatePetRequest(
 
         String preExistingIllness,
 
+        String profileImageUrl,
+
         @Valid
         List<CreatePetVaccinationRequest> vaccinations
 ) {

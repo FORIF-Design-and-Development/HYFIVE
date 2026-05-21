@@ -83,7 +83,8 @@ public class Pet {
             PetGender gender,
             Boolean isNeutered,
             LocalDate lastCheckupDate,
-            String preExistingIllness
+            String preExistingIllness,
+            String profileImageUrl
     ) {
         this.user = user;
         this.type = type;
@@ -94,6 +95,7 @@ public class Pet {
         this.isNeutered = isNeutered;
         this.lastCheckupDate = lastCheckupDate;
         this.preExistingIllness = preExistingIllness;
+        this.profileImageUrl = profileImageUrl;
     }
 
     public static Pet create(
@@ -105,7 +107,8 @@ public class Pet {
             PetGender gender,
             Boolean isNeutered,
             LocalDate lastCheckupDate,
-            String preExistingIllness
+            String preExistingIllness,
+            String profileImageUrl
     ) {
         return new Pet(
                 user,
@@ -116,7 +119,8 @@ public class Pet {
                 gender,
                 isNeutered,
                 lastCheckupDate,
-                preExistingIllness
+                preExistingIllness,
+                profileImageUrl
         );
     }
 
