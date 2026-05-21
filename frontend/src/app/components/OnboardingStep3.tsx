@@ -4,7 +4,7 @@ import MobileFrame from './MobileFrame';
 import { CheckCircle2, Edit3, Loader2, AlertCircle } from 'lucide-react';
 import type { PetGender, PetType, VaccineCode } from '../context/onboarding';
 import { useOnboarding } from '../context/useOnboarding';
-import { createPet, PetApiError, PetNetworkError } from '../api/onboarding';
+import { createPet, uploadProfileImage, PetApiError, PetNetworkError } from '../api/onboarding';
 
 function toPetErrorMsg(e: unknown): string {
   if (e instanceof PetNetworkError) return '서버에 연결할 수 없어요. 네트워크를 확인해주세요.';
@@ -259,6 +259,11 @@ export default function OnboardingStep3() {
                 setSaving(true);
                 setSaveError('');
                 try {
+                  let profileImageUrl: string | undefined;
+                  if (step1.photoFile) {
+                    profileImageUrl = await uploadProfileImage(step1.photoFile);
+                  }
+
                   await createPet({
                     type: step1.petType ?? 'DOG',
                     name: step1.name,
@@ -269,6 +274,7 @@ export default function OnboardingStep3() {
                     weightKg: parseFloat(step1.weight) || 0,
                     lastCheckupDate: step2.lastCheckup || undefined,
                     preExistingIllness: step2.diseases || undefined,
+                    profileImageUrl,
                     vaccinations: Object.entries(step2.vaccines).map(([code, isCompleted]) => ({
                       code,
                       isCompleted,

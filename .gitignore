@@ -17,3 +17,6 @@ frontend/.env.development
 frontend/.env.development.local
 frontend/.env.production
 frontend/.env.production.local
+
+# 로컬 HTTP 테스트 파일 (JWT 토큰 포함 가능)
+backend/http-tests/
