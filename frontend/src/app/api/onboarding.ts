@@ -18,6 +18,7 @@ export interface CreatePetBody {
   weightKg: number;
   lastCheckupDate?: string;
   preExistingIllness?: string;
+  profileImageUrl?: string;
   vaccinations?: VaccinationInput[];
 }
 
@@ -98,4 +99,26 @@ export async function createPet(body: CreatePetBody): Promise<CreatePetResponse>
   }
 
   return data as CreatePetResponse;
+}
+
+/** POST /images — S3에 이미지 업로드 후 URL 반환 */
+export async function uploadProfileImage(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await safeFetch(`${API_BASE}/images`, {
+    method: 'POST',
+    headers: { ...authHeaders() },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw new PetApiError(
+        res.status,
+        'IMAGE_UPLOAD_FAILED',
+        `이미지 업로드 실패 (HTTP ${res.status})`,
+    );
+  }
+
+  return res.text();
 }
