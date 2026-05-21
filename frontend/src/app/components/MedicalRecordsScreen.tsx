@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft, ChevronDown, ChevronUp, Plus, Hospital, Receipt, Search } from 'lucide-react';
-import { useMedicalRecords } from '../context/useMedicalRecords';
+import { getMedicalRecords, type MedicalRecordApi } from '../api/medical';
 import type { MedicalRecord, MedicalRecordType } from '../context/medicalRecords';
 
 type MedFilter = '전체' | MedicalRecordType;
@@ -15,18 +15,67 @@ const TYPE_COLORS: Record<MedicalRecordType, { bg: string; text: string; border:
   '기타': { bg: '#FFF8E1', text: '#F57F17', border: '#FFE082' },
 };
 
+const TYPE_REVERSE_MAP: Record<string, MedicalRecordType> = {
+  TREATMENT: '진료',
+  VACCINATION: '예방접종',
+  SURGERY: '수술',
+  CHECKUP: '건강검진',
+  OTHER: '기타',
+};
+
 const FILTERS: MedFilter[] = ['전체', '진료', '예방접종', '수술', '건강검진', '기타'];
 
 type EditableKey = 'hospital' | 'date' | 'diagnosis' | 'amount';
 
+function apiToUiRecord(api: MedicalRecordApi): MedicalRecord {
+  return {
+    id: api.medicalRecordId,
+    date: api.visitDate,
+    hospital: api.clinicName,
+    type: TYPE_REVERSE_MAP[api.type] ?? '기타',
+    diagnosis: api.diagnosis,
+    items: api.content,
+    amount: String(api.totalCost),
+    memo: '',
+    prescriptions: api.prescriptions.map(p =>
+      p.period ? `${p.content} (${p.period})` : p.content,
+    ),
+    attachments: api.imageUrls ?? [],
+  };
+}
+
 export default function MedicalRecordsScreen() {
   const navigate = useNavigate();
-  const { records, updateRecord } = useMedicalRecords();
+  const [records, setRecords] = useState<MedicalRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<MedFilter>('전체');
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [editDraft, setEditDraft] = useState<Partial<MedicalRecord>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setFetchError(null);
+    getMedicalRecords()
+      .then(apiRecords => {
+        if (cancelled) return;
+        setRecords(apiRecords.map(apiToUiRecord));
+        setLoading(false);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        setFetchError(err instanceof Error ? err.message : '불러오기 실패');
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const updateRecord = (id: number, patch: Partial<MedicalRecord>) => {
+    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+  };
 
   const filtered = records.filter((record) => {
     const matchType = filter === '전체' || record.type === filter;
@@ -34,7 +83,6 @@ export default function MedicalRecordsScreen() {
       record.hospital.includes(search) ||
       record.diagnosis.includes(search) ||
       record.items.includes(search);
-
     return matchType && matchSearch;
   });
 
@@ -133,7 +181,31 @@ export default function MedicalRecordsScreen() {
             </div>
 
             <div className="space-y-3">
-              {filtered.length === 0 ? (
+              {loading ? (
+                <div className="text-center py-10 rounded-2xl" style={{ backgroundColor: 'white', border: '1px solid #E0E0E0' }}>
+                  <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto" style={{ borderColor: '#C5D8EE', borderTopColor: '#1B4B8C' }} />
+                  <p style={{ fontSize: '12px', color: '#9E9E9E', marginTop: '10px' }}>불러오는 중...</p>
+                </div>
+              ) : fetchError ? (
+                <div className="text-center py-10 rounded-2xl" style={{ backgroundColor: 'white', border: '1px solid #E0E0E0' }}>
+                  <span style={{ fontSize: '36px' }}>⚠️</span>
+                  <p style={{ fontSize: '13px', color: '#C62828', fontWeight: 700, marginTop: '8px' }}>불러오기 실패</p>
+                  <p style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '4px' }}>{fetchError}</p>
+                  <button
+                    onClick={() => {
+                      setLoading(true);
+                      setFetchError(null);
+                      getMedicalRecords()
+                        .then(r => { setRecords(r.map(apiToUiRecord)); setLoading(false); })
+                        .catch(e => { setFetchError(e instanceof Error ? e.message : '오류 발생'); setLoading(false); });
+                    }}
+                    className="mt-3 px-4 py-2 rounded-xl"
+                    style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE', fontSize: '12px', fontWeight: 700, color: '#1B4B8C' }}
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              ) : filtered.length === 0 ? (
                 <div className="text-center py-10 rounded-2xl" style={{ backgroundColor: 'white', border: '1px solid #E0E0E0' }}>
                   <span style={{ fontSize: '36px' }}>📋</span>
                   <p style={{ fontSize: '13px', color: '#1B4B8C', fontWeight: 700, marginTop: '8px' }}>아직 저장된 진료기록이 없어요</p>
@@ -271,20 +343,22 @@ export default function MedicalRecordsScreen() {
                             )}
                           </div>
 
-                          <div className="rounded-xl p-3" style={{ backgroundColor: '#FFFDE7', border: '1px solid #FFF176' }}>
-                            <p style={{ fontSize: '10px', fontWeight: 700, color: '#F9A825', marginBottom: '3px' }}>메모</p>
-                            {isEditing ? (
-                              <textarea
-                                value={String(editDraft.memo ?? '')}
-                                onChange={(event) => setEditDraft((current) => ({ ...current, memo: event.target.value }))}
-                                className="w-full rounded-lg px-3 py-2"
-                                rows={3}
-                                style={{ fontSize: '11px', border: '1px solid #FFF176', outline: 'none', resize: 'none', backgroundColor: 'rgba(255,255,255,0.9)' }}
-                              />
-                            ) : (
-                              <p style={{ fontSize: '11px', color: '#5D4037', lineHeight: 1.6 }}>{record.memo}</p>
-                            )}
-                          </div>
+                          {(record.memo || isEditing) && (
+                            <div className="rounded-xl p-3" style={{ backgroundColor: '#FFFDE7', border: '1px solid #FFF176' }}>
+                              <p style={{ fontSize: '10px', fontWeight: 700, color: '#F9A825', marginBottom: '3px' }}>메모</p>
+                              {isEditing ? (
+                                <textarea
+                                  value={String(editDraft.memo ?? '')}
+                                  onChange={(event) => setEditDraft((current) => ({ ...current, memo: event.target.value }))}
+                                  className="w-full rounded-lg px-3 py-2"
+                                  rows={3}
+                                  style={{ fontSize: '11px', border: '1px solid #FFF176', outline: 'none', resize: 'none', backgroundColor: 'rgba(255,255,255,0.9)' }}
+                                />
+                              ) : (
+                                <p style={{ fontSize: '11px', color: '#5D4037', lineHeight: 1.6 }}>{record.memo}</p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
