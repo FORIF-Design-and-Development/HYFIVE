@@ -122,3 +122,15 @@ export async function uploadProfileImage(file: File): Promise<string> {
 
   return res.text();
 }
+
+/** DELETE /images — S3에서 이미지 삭제 (보상 호출용, 실패해도 무시) */
+export async function deleteProfileImage(url: string): Promise<void> {
+  try {
+    await safeFetch(`${API_BASE}/images?url=${encodeURIComponent(url)}`, {
+      method: 'DELETE',
+      headers: { ...authHeaders() },
+    });
+  } catch {
+    // 보상 호출은 실패해도 무시 (원래 에러가 더 중요)
+  }
+}

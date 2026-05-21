@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.S3Client;
 
@@ -42,5 +43,32 @@ public class S3Service {
                 bucket,
                 fileName
         );
+    }
+
+    public void delete(String imageUrl) {
+        String key = extractKeyFromUrl(imageUrl);
+        if (key == null) {
+            return;
+        }
+
+        DeleteObjectRequest request = DeleteObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .build();
+
+        s3Client.deleteObject(request);
+    }
+
+    private String extractKeyFromUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return null;
+        }
+
+        String prefix = String.format("https://%s.s3.ap-northeast-2.amazonaws.com/", bucket);
+        if (!imageUrl.startsWith(prefix)) {
+            return null;
+        }
+
+        return imageUrl.substring(prefix.length());
     }
 }

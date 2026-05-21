@@ -4,7 +4,7 @@ import MobileFrame from './MobileFrame';
 import { CheckCircle2, Edit3, Loader2, AlertCircle } from 'lucide-react';
 import type { PetGender, PetType, VaccineCode } from '../context/onboarding';
 import { useOnboarding } from '../context/useOnboarding';
-import { createPet, uploadProfileImage, PetApiError, PetNetworkError } from '../api/onboarding';
+import { createPet, uploadProfileImage, deleteProfileImage, PetApiError, PetNetworkError } from '../api/onboarding';
 
 function toPetErrorMsg(e: unknown): string {
   if (e instanceof PetNetworkError) return '서버에 연결할 수 없어요. 네트워크를 확인해주세요.';
@@ -258,8 +258,8 @@ export default function OnboardingStep3() {
                 if (saving || confirmed) return;
                 setSaving(true);
                 setSaveError('');
+                let profileImageUrl: string | undefined;
                 try {
-                  let profileImageUrl: string | undefined;
                   if (step1.photoFile) {
                     profileImageUrl = await uploadProfileImage(step1.photoFile);
                   }
@@ -283,6 +283,9 @@ export default function OnboardingStep3() {
                   setConfirmed(true);
                   navigate('/home');
                 } catch (e) {
+                  if (profileImageUrl) {
+                    await deleteProfileImage(profileImageUrl);
+                  }
                   setSaveError(toPetErrorMsg(e));
                 } finally {
                   setSaving(false);
