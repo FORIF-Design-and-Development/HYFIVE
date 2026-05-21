@@ -7,6 +7,7 @@ import com.hyfive.backend.meal.dto.MealRecordDto;
 import com.hyfive.backend.meal.entity.MealRecord;
 import com.hyfive.backend.meal.exception.MealRecordConflictException;
 import com.hyfive.backend.meal.repository.MealRecordRepository;
+import com.hyfive.backend.pet.repository.PetRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.List;
 public class BaseMealRecordService implements MealRecordService {
 
     private final MealRecordRepository mealRecordRepository;
+    private final PetRepository petRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -54,6 +56,9 @@ public class BaseMealRecordService implements MealRecordService {
     public MealRecordDto uploadMealRecord(Long petId, MealRecordDto mealRecordDto) {
         if (petId == null || mealRecordDto == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "식사 기록 요청이 올바르지 않습니다.");
+        }
+        if (!petRepository.existsById(petId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "반려동물을 찾을 수 없습니다.");
         }
 
         MealTime time = parseEnum(MealTime.class, mealRecordDto.getTime(), "식사 시간이 올바르지 않습니다.");

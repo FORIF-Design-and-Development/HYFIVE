@@ -259,7 +259,7 @@ export default function OnboardingStep3() {
                 setSaving(true);
                 setSaveError('');
                 try {
-                  await createPet({
+                  const createdPet = await createPet({
                     type: step1.petType ?? 'DOG',
                     name: step1.name,
                     breed: step1.breed,
@@ -274,6 +274,7 @@ export default function OnboardingStep3() {
                       isCompleted,
                     })),
                   });
+                  localStorage.setItem('hyfive_petId', String(createdPet.petId));
                   setConfirmed(true);
                   navigate('/home');
                 } catch (e) {
