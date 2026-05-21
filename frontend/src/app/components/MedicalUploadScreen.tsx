@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft, Camera, Sparkles, CheckCircle2, Edit3, ChevronDown, X } from 'lucide-react';
+import { useMedicalRecords } from '../context/useMedicalRecords';
+import type { MedicalRecord } from '../context/medicalRecords';
 
 type ScreenState = 'upload' | 'analyzing' | 'result';
 type MedicalType = '진료' | '예방접종' | '수술' | '건강검진' | '기타';
@@ -26,9 +28,11 @@ const analyzeSteps = [
 export default function MedicalUploadScreen() {
   const navigate = useNavigate();
   const receiptInputRef = useRef<HTMLInputElement>(null);
+  const receiptPreviewUrlsRef = useRef<string[]>([]);
+  const { addRecord } = useMedicalRecords();
 
   const [screenState, setScreenState] = useState<ScreenState>('upload');
-  const [selectedDate, setSelectedDate] = useState('2026-03-26');
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [medType, setMedType] = useState<MedicalType>('진료');
   const [receiptFiles, setReceiptFiles] = useState<File[]>([]);
   const [receiptPreviewUrls, setReceiptPreviewUrls] = useState<string[]>([]);
@@ -38,9 +42,9 @@ export default function MedicalUploadScreen() {
 
   useEffect(() => {
     return () => {
-      receiptPreviewUrls.forEach(url => URL.revokeObjectURL(url));
+      receiptPreviewUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
     };
-  }, [receiptPreviewUrls]);
+  }, []);
 
   const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -49,17 +53,29 @@ export default function MedicalUploadScreen() {
     const added = files.slice(0, remaining);
     const newUrls = added.map(f => URL.createObjectURL(f));
     setReceiptFiles(prev => [...prev, ...added]);
-    setReceiptPreviewUrls(prev => [...prev, ...newUrls]);
+    setReceiptPreviewUrls(prev => {
+      const next = [...prev, ...newUrls];
+      receiptPreviewUrlsRef.current = next;
+      return next;
+    });
     e.target.value = '';
   };
 
   const removeReceipt = (idx: number) => {
     URL.revokeObjectURL(receiptPreviewUrls[idx]);
     setReceiptFiles(prev => prev.filter((_, i) => i !== idx));
-    setReceiptPreviewUrls(prev => prev.filter((_, i) => i !== idx));
+    setReceiptPreviewUrls(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      receiptPreviewUrlsRef.current = next;
+      return next;
+    });
   };
 
   const handleAnalyze = () => {
+    setOcrData({
+      ...MOCK_OCR,
+      date: selectedDate,
+    });
     setScreenState('analyzing');
     setAnalyzeStep(0);
     let step = 0;
@@ -73,8 +89,30 @@ export default function MedicalUploadScreen() {
     }, 700);
   };
 
-  const handleSave = () => {
-    navigate('/medical-records');
+  const readAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
+  const handleSave = async () => {
+    const attachments = await Promise.all(receiptFiles.map(readAsDataUrl));
+    const newRecord: MedicalRecord = {
+      id: Date.now(),
+      date: ocrData.date,
+      hospital: ocrData.hospital,
+      type: medType,
+      diagnosis: ocrData.diagnosis,
+      items: ocrData.items,
+      amount: ocrData.amount,
+      memo: 'AI 자동분석 임시 메모입니다. 필요하면 진료기록 페이지에서 수정해주세요.',
+      prescriptions: ['임시 처방 데이터 1', '임시 처방 데이터 2'],
+      attachments,
+    };
+
+    addRecord(newRecord);
+    navigate('/medical-records', { replace: true });
   };
 
   return (
@@ -83,7 +121,7 @@ export default function MedicalUploadScreen() {
 
         {/* Header */}
         <div className="flex-shrink-0 bg-white flex items-center px-4" style={{ height: '32px', borderBottom: '1px solid #E8E8E8' }}>
-          <button onClick={() => screenState === 'upload' ? navigate('/medical-records') : setScreenState('upload')}
+          <button onClick={() => screenState === 'upload' ? navigate(-1) : setScreenState('upload')}
             className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: '#1B4B8C' }}>
             <ChevronLeft size={22} />
           </button>
@@ -116,6 +154,7 @@ export default function MedicalUploadScreen() {
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 600, color: '#1B4B8C', display: 'block', marginBottom: '3px' }}>진료일</label>
                 <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
                   className="w-full rounded-xl px-4"
                   style={{ height: '44px', fontSize: '13px', border: '2px solid #1B4B8C', backgroundColor: '#E8F0FA', color: '#1C1C1C', outline: 'none' }} />
               </div>

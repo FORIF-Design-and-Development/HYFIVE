@@ -1,11 +1,14 @@
 import { RouterProvider } from 'react-router';
+import { MedicalRecordsProvider } from './context/MedicalRecordsProvider';
 import { OnboardingProvider } from './context/OnboardingProvider';
 import { router } from './routes';
 
 function App() {
   return (
     <OnboardingProvider>
-      <RouterProvider router={router} />
+      <MedicalRecordsProvider>
+        <RouterProvider router={router} />
+      </MedicalRecordsProvider>
     </OnboardingProvider>
   );
 }
