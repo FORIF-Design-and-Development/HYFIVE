@@ -280,6 +280,7 @@ export default function OnboardingStep3() {
                       isCompleted,
                     })),
                   });
+                  localStorage.setItem('hyfive_petId', String(createdPet.petId));
                   setConfirmed(true);
                   navigate('/home');
                 } catch (e) {
