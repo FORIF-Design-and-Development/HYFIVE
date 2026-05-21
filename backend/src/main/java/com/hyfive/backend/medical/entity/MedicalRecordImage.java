@@ -16,23 +16,20 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "prescriptions")
+@Table(name = "medical_record_images")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 @Builder
-public class Prescription {
+public class MedicalRecordImage {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "prescription_id")
-    private Long prescriptionId;
+    @Column(name = "image_id")
+    private Long imageId;
 
-    @Column(name = "content", nullable = false)
-    private String content;
-
-    @Column(name = "period", nullable = false)
-    private Integer period;
+    @Column(name = "image_url", length = 500)
+    private String imageUrl;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "medical_record_id", nullable = false)

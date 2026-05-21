@@ -34,3 +34,8 @@ cloud:
       static: ${AWS_REGION:ap-northeast-2}
     s3:
       bucket: ${AWS_S3_BUCKET:}
+
+ocr:
+  tesseract:
+    datapath: ${TESSERACT_DATAPATH:C:/Program Files/Tesseract-OCR/tessdata}
+    language: ${TESSERACT_LANGUAGE:kor+eng}

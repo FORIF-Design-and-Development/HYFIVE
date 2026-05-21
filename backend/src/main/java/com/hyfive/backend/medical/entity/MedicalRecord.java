@@ -5,6 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -28,6 +30,7 @@ import java.time.LocalDateTime;
 public class MedicalRecord {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "medical_record_id")
     private Long medicalRecordId;
 
@@ -65,4 +68,8 @@ public class MedicalRecord {
     @OneToMany(mappedBy = "medicalRecord")
     @Builder.Default
     private List<Prescription> prescriptions = new ArrayList<>();
+
+    @OneToMany(mappedBy = "medicalRecord")
+    @Builder.Default
+    private List<MedicalRecordImage> images = new ArrayList<>();
 }
