@@ -25,8 +25,6 @@ const TYPE_REVERSE_MAP: Record<string, MedicalRecordType> = {
 
 const FILTERS: MedFilter[] = ['전체', '진료', '예방접종', '수술', '건강검진', '기타'];
 
-type EditableKey = 'hospital' | 'date' | 'diagnosis' | 'amount';
-
 function apiToUiRecord(api: MedicalRecordApi): MedicalRecord {
   return {
     id: api.medicalRecordId,
@@ -51,9 +49,7 @@ export default function MedicalRecordsScreen() {
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [filter, setFilter] = useState<MedFilter>('전체');
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
-  const [editDraft, setEditDraft] = useState<Partial<MedicalRecord>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -73,10 +69,6 @@ export default function MedicalRecordsScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  const updateRecord = (id: number, patch: Partial<MedicalRecord>) => {
-    setRecords(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
-  };
-
   const filtered = records.filter((record) => {
     const matchType = filter === '전체' || record.type === filter;
     const matchSearch = search === '' ||
@@ -85,41 +77,6 @@ export default function MedicalRecordsScreen() {
       record.items.includes(search);
     return matchType && matchSearch;
   });
-
-  const startEdit = (record: MedicalRecord) => {
-    setEditingId(record.id);
-    setEditDraft({
-      hospital: record.hospital,
-      date: record.date,
-      diagnosis: record.diagnosis,
-      amount: record.amount,
-      items: record.items,
-      memo: record.memo,
-      prescriptions: record.prescriptions,
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditDraft({});
-  };
-
-  const saveEdit = (id: number) => {
-    updateRecord(id, {
-      hospital: String(editDraft.hospital ?? ''),
-      date: String(editDraft.date ?? ''),
-      diagnosis: String(editDraft.diagnosis ?? ''),
-      amount: String(editDraft.amount ?? ''),
-      items: String(editDraft.items ?? ''),
-      memo: String(editDraft.memo ?? ''),
-      prescriptions: Array.isArray(editDraft.prescriptions) ? editDraft.prescriptions : [],
-    });
-    cancelEdit();
-  };
-
-  const updateDraft = (key: EditableKey, value: string) => {
-    setEditDraft((current) => ({ ...current, [key]: value }));
-  };
 
   return (
     <MobileFrame>
@@ -214,13 +171,6 @@ export default function MedicalRecordsScreen() {
               ) : filtered.map(record => {
                 const typeColor = TYPE_COLORS[record.type];
                 const isOpen = expandedId === record.id;
-                const isEditing = editingId === record.id;
-                const detailFields: { label: string; key: EditableKey; value: string }[] = [
-                  { label: '병원', key: 'hospital', value: record.hospital },
-                  { label: '날짜', key: 'date', value: record.date },
-                  { label: '진단', key: 'diagnosis', value: record.diagnosis },
-                  { label: '금액', key: 'amount', value: record.amount },
-                ];
 
                 return (
                   <div key={record.id} className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E0E0E0', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
@@ -254,82 +204,28 @@ export default function MedicalRecordsScreen() {
                     {isOpen && (
                       <div style={{ borderTop: '1px solid #F5F5F5', backgroundColor: '#FAFAFA' }}>
                         <div className="px-4 py-3 space-y-3">
-                          <div className="flex items-center justify-end gap-2">
-                            {isEditing ? (
-                              <>
-                                <button
-                                  onClick={cancelEdit}
-                                  className="px-3 py-2 rounded-xl"
-                                  style={{ backgroundColor: 'white', border: '1px solid #E0E0E0', fontSize: '11px', fontWeight: 700, color: '#9E9E9E' }}
-                                >
-                                  취소
-                                </button>
-                                <button
-                                  onClick={() => saveEdit(record.id)}
-                                  className="px-3 py-2 rounded-xl"
-                                  style={{ backgroundColor: '#1B4B8C', border: '1px solid #1B4B8C', fontSize: '11px', fontWeight: 700, color: 'white' }}
-                                >
-                                  저장
-                                </button>
-                              </>
-                            ) : (
-                              <button
-                                onClick={() => startEdit(record)}
-                                className="px-3 py-2 rounded-xl"
-                                style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE', fontSize: '11px', fontWeight: 700, color: '#1B4B8C' }}
-                              >
-                                수정
-                              </button>
-                            )}
-                          </div>
-
                           <div className="grid grid-cols-2 gap-2">
-                            {detailFields.map(field => (
-                              <div key={field.key} className="rounded-xl p-3" style={{ backgroundColor: 'white', border: '1px solid #EFEFEF' }}>
+                            {[
+                              { label: '병원', value: record.hospital },
+                              { label: '날짜', value: record.date },
+                              { label: '진단', value: record.diagnosis },
+                              { label: '금액', value: `${record.amount}원` },
+                            ].map(field => (
+                              <div key={field.label} className="rounded-xl p-3" style={{ backgroundColor: 'white', border: '1px solid #EFEFEF' }}>
                                 <p style={{ fontSize: '10px', color: '#9E9E9E', marginBottom: '3px' }}>{field.label}</p>
-                                {isEditing ? (
-                                  <input
-                                    type={field.key === 'date' ? 'date' : 'text'}
-                                    value={String(editDraft[field.key] ?? '')}
-                                    onChange={(event) => updateDraft(field.key, event.target.value)}
-                                    className="w-full rounded-lg px-3"
-                                    style={{ height: '34px', fontSize: '12px', border: '1px solid #C5D8EE', outline: 'none' }}
-                                  />
-                                ) : (
-                                  <p style={{ fontSize: '12px', fontWeight: 600, color: '#1C1C1C' }}>
-                                    {field.key === 'amount' ? `${field.value}원` : field.value}
-                                  </p>
-                                )}
+                                <p style={{ fontSize: '12px', fontWeight: 600, color: '#1C1C1C' }}>{field.value}</p>
                               </div>
                             ))}
                           </div>
 
                           <div className="rounded-xl p-3" style={{ backgroundColor: 'white', border: '1px solid #EFEFEF' }}>
                             <p style={{ fontSize: '10px', color: '#9E9E9E', marginBottom: '4px' }}>진료 항목</p>
-                            {isEditing ? (
-                              <textarea
-                                value={String(editDraft.items ?? '')}
-                                onChange={(event) => setEditDraft((current) => ({ ...current, items: event.target.value }))}
-                                className="w-full rounded-lg px-3 py-2"
-                                rows={2}
-                                style={{ fontSize: '12px', border: '1px solid #C5D8EE', outline: 'none', resize: 'none' }}
-                              />
-                            ) : (
-                              <p style={{ fontSize: '12px', color: '#1C1C1C' }}>{record.items}</p>
-                            )}
+                            <p style={{ fontSize: '12px', color: '#1C1C1C' }}>{record.items}</p>
                           </div>
 
                           <div className="rounded-xl p-3" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
                             <p style={{ fontSize: '10px', fontWeight: 700, color: '#1B4B8C', marginBottom: '6px' }}>처방 내역</p>
-                            {isEditing ? (
-                              <textarea
-                                value={(Array.isArray(editDraft.prescriptions) ? editDraft.prescriptions : []).join('\n')}
-                                onChange={(event) => setEditDraft((current) => ({ ...current, prescriptions: event.target.value.split('\n').filter(Boolean) }))}
-                                className="w-full rounded-lg px-3 py-2"
-                                rows={3}
-                                style={{ fontSize: '11px', border: '1px solid #C5D8EE', outline: 'none', resize: 'none' }}
-                              />
-                            ) : record.prescriptions.length > 0 ? (
+                            {record.prescriptions.length > 0 ? (
                               <div className="space-y-1.5">
                                 {record.prescriptions.map((prescription, index) => (
                                   <div key={index} className="flex items-center gap-2">
@@ -342,23 +238,6 @@ export default function MedicalRecordsScreen() {
                               <p style={{ fontSize: '11px', color: '#6A9FD4' }}>처방 내역이 없어요</p>
                             )}
                           </div>
-
-                          {(record.memo || isEditing) && (
-                            <div className="rounded-xl p-3" style={{ backgroundColor: '#FFFDE7', border: '1px solid #FFF176' }}>
-                              <p style={{ fontSize: '10px', fontWeight: 700, color: '#F9A825', marginBottom: '3px' }}>메모</p>
-                              {isEditing ? (
-                                <textarea
-                                  value={String(editDraft.memo ?? '')}
-                                  onChange={(event) => setEditDraft((current) => ({ ...current, memo: event.target.value }))}
-                                  className="w-full rounded-lg px-3 py-2"
-                                  rows={3}
-                                  style={{ fontSize: '11px', border: '1px solid #FFF176', outline: 'none', resize: 'none', backgroundColor: 'rgba(255,255,255,0.9)' }}
-                                />
-                              ) : (
-                                <p style={{ fontSize: '11px', color: '#5D4037', lineHeight: 1.6 }}>{record.memo}</p>
-                              )}
-                            </div>
-                          )}
                         </div>
                       </div>
                     )}
