@@ -144,12 +144,16 @@ export async function getMedicalRecords(): Promise<MedicalRecordApi[]> {
 export async function analyzeMedicalOcr(
   visitDate: string,
   type: MedicalTypeEnum,
-  imageBase64List: string[],
+  images: File[],
 ): Promise<MedicalOcrResult> {
+  const formData = new FormData();
+  formData.append('visitDate', visitDate);
+  formData.append('type', type);
+  images.forEach(file => formData.append('image', file));
   const res = await safeFetch(`${API_BASE}/api/ocr/medical`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-    body: JSON.stringify({ visitDate, type, image: imageBase64List }),
+    headers: authHeaders(),
+    body: formData,
   });
   return parseEnvelope<MedicalOcrResult>(res);
 }
