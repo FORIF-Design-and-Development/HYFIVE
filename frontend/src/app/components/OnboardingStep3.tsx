@@ -1,9 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import { CheckCircle2, Edit3 } from 'lucide-react';
+import { CheckCircle2, Edit3, Loader2, AlertCircle } from 'lucide-react';
 import type { PetGender, PetType, VaccineCode } from '../context/onboarding';
 import { useOnboarding } from '../context/useOnboarding';
+import { createPet, PetApiError, PetNetworkError } from '../api/onboarding';
+
+function toPetErrorMsg(e: unknown): string {
+  if (e instanceof PetNetworkError) return '서버에 연결할 수 없어요. 네트워크를 확인해주세요.';
+  if (e instanceof PetApiError) {
+    if (e.status === 401) return '로그인이 만료됐어요. 다시 로그인해주세요.';
+    if (e.status === 422) return `입력값 오류: ${e.message}`;
+    if (e.status >= 500) return `서버 오류 (${e.status}). 잠시 후 다시 시도해주세요.`;
+    return e.message;
+  }
+  return '등록에 실패했어요. 다시 시도해주세요.';
+}
 
 function ProgressBar({ step }: { step: number }) {
   return (
@@ -68,6 +80,8 @@ export default function OnboardingStep3() {
   const navigate = useNavigate();
   const { step1, step2 } = useOnboarding();
   const [confirmed, setConfirmed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -230,11 +244,64 @@ export default function OnboardingStep3() {
         </div>
 
         {/* CTA */}
-        <div className="flex-shrink-0 px-5" style={{ paddingBottom: '28px', paddingTop: '12px', backgroundColor: '#F8FAFD' }}>
-          <button onClick={() => { setConfirmed(true); navigate('/home'); }}
-            className="w-full rounded-xl transition-all active:scale-[0.98]"
-            style={{ height: '50px', background: 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)', color: 'white', fontSize: '15px', fontWeight: 700, boxShadow: '0 4px 16px rgba(27,75,140,0.3)' }}>
-            {confirmed ? '이동 중...' : '홈으로 이동 →'}
+        <div className="flex-shrink-0 px-5 space-y-2" style={{ paddingBottom: '28px', paddingTop: '12px', backgroundColor: '#F8FAFD' }}>
+          {saveError && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: '#FFEBEE', border: '1px solid #FFCDD2' }}>
+              <AlertCircle size={14} style={{ color: '#C62828' }} />
+              <span style={{ fontSize: '11px', color: '#C62828', fontWeight: 600 }}>{saveError}</span>
+            </div>
+          )}
+          <button
+            disabled={saving || confirmed}
+            onClick={() => {
+              void (async () => {
+                if (saving || confirmed) return;
+                setSaving(true);
+                setSaveError('');
+                try {
+                  await createPet({
+                    type: step1.petType ?? 'DOG',
+                    name: step1.name,
+                    breed: step1.breed,
+                    birthdate: step1.birthdate,
+                    gender: step1.gender ?? 'MALE',
+                    isNeutered: step1.isNeutered ?? false,
+                    weightKg: parseFloat(step1.weight) || 0,
+                    lastCheckupDate: step2.lastCheckup || undefined,
+                    preExistingIllness: step2.diseases || undefined,
+                    vaccinations: Object.entries(step2.vaccines).map(([code, isCompleted]) => ({
+                      code,
+                      isCompleted,
+                    })),
+                  });
+                  setConfirmed(true);
+                  navigate('/home');
+                } catch (e) {
+                  setSaveError(toPetErrorMsg(e));
+                } finally {
+                  setSaving(false);
+                }
+              })();
+            }}
+            className="w-full rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{
+              height: '50px',
+              background: confirmed
+                ? 'linear-gradient(135deg, #2E7D32, #388E3C)'
+                : 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)',
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: 700,
+              border: 'none',
+              boxShadow: '0 4px 16px rgba(27,75,140,0.3)',
+              opacity: saving ? 0.6 : 1,
+              cursor: saving || confirmed ? 'not-allowed' : 'pointer',
+            }}>
+            {confirmed
+              ? '이동 중...'
+              : saving
+                ? <><Loader2 size={16} className="animate-spin" /> 등록 중…</>
+                : '홈으로 이동 →'}
           </button>
         </div>
       </div>
