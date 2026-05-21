@@ -40,6 +40,7 @@ jobs:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_KAKAO_MAP_KEY: ${{ secrets.VITE_KAKAO_MAP_KEY }}
           VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GEOAPIFY_API_KEY: ${{ secrets.VITE_GEOAPIFY_API_KEY }}
 
       # 개발 중에는 dev 머지도 운영 채널(live)에 바로 반영
       - name: Deploy to Firebase Hosting (live)

@@ -218,9 +218,14 @@ function WalkDoneContent({ state, navigate }: { state: WalkDoneState; navigate: 
                     style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   />
                 ) : (
-                  <span style={{ fontSize: '11px', color: '#6A9FD4', fontWeight: 600 }}>
-                    지도 캡쳐에 실패했어요
-                  </span>
+                  <div className="flex flex-col items-center gap-1 px-4 text-center">
+                    <span style={{ fontSize: '13px', color: '#1B4B8C', fontWeight: 700 }}>
+                      이동 경로가 없어요
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#6A9FD4', lineHeight: 1.5 }}>
+                      GPS 신호가 잡힌 상태로 실제로 걸어야 경로가 그려져요
+                    </span>
+                  </div>
                 )}
               </div>
             </div>

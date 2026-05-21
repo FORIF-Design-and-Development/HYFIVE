@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import BottomNav from './BottomNav';
 import { Play, Pause, Square, ChevronLeft, Navigation, Timer, Footprints, Flame, AlertCircle, Loader2, MapPinOff } from 'lucide-react';
-import { domToPng } from 'modern-screenshot';
 import {
   loadKakaoMap,
   haversineMeters,
@@ -12,6 +11,7 @@ import {
   type KakaoMarker,
   type KakaoPolyline,
 } from '../lib/kakao-map';
+import { fetchWalkSnapshot } from '../api/snapshot';
 import type { WalkDoneState } from './WalkDoneScreen';
 
 // Discard GPS fixes worse than this (jitter inflates distance otherwise)
@@ -101,6 +101,9 @@ export default function WalkScreen() {
   const markerRef = useRef<KakaoMarker | null>(null);
   const polylineRef = useRef<KakaoPolyline | null>(null);
   const pathRef = useRef<{ lat: number; lng: number; ts: number }[]>([]);
+  // Latest map center / marker position — used as a 1-point snapshot fallback
+  // when no walking path was recorded (e.g. desktop testing, no movement).
+  const lastKnownPosRef = useRef<{ lat: number; lng: number }>({ ...SEOUL_CITY_HALL });
   const watchIdRef = useRef<number | null>(null);
   // Skip distance accumulation for the next segment (set after pause→resume)
   const skipNextSegmentRef = useRef<boolean>(false);
@@ -140,6 +143,7 @@ export default function WalkScreen() {
         navigator.geolocation.getCurrentPosition(
           pos => {
             if (cancelled || !kakaoRef.current || !mapRef.current) return;
+            lastKnownPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             const ll = new kakaoRef.current.LatLng(pos.coords.latitude, pos.coords.longitude);
             mapRef.current.setCenter(ll);
             markerRef.current?.setPosition(ll);
@@ -185,6 +189,7 @@ export default function WalkScreen() {
         if (!kakao || !mapRef.current) return;
 
         // Always show the marker — but only accumulate distance for good fixes
+        lastKnownPosRef.current = { lat: latitude, lng: longitude };
         const ll = new kakao.LatLng(latitude, longitude);
         mapRef.current.panTo(ll);
         markerRef.current?.setPosition(ll);
@@ -264,33 +269,101 @@ export default function WalkScreen() {
     startWatch();
   };
 
-  // Kakao tiles are cross-origin without CORS headers — modern-screenshot's
-  // image inlining can hang indefinitely on them. Cap the snapshot at 5s so
-  // 종료 always transitions the screen, capture or no capture.
-  const SNAPSHOT_TIMEOUT_MS = 5000;
-
+  // Snapshot strategy:
+  //   1. Ask the backend for a Naver Static Map PNG (real basemap + our path).
+  //   2. If backend returns 204 (no Naver creds, upstream error, or coords < 2),
+  //      fall back to a local SVG render — path-only on a grid background.
+  // Kakao tiles can't be used here because the public tile servers don't send
+  // CORS headers, so client-side canvas capture taints/drops the basemap.
   const captureMapSnapshot = useCallback(async (): Promise<string | null> => {
-    const kakao = kakaoRef.current;
-    const map = mapRef.current;
-    const container = mapContainerRef.current;
-    if (!container) return null;
+    const path = pathRef.current;
 
-    if (kakao && map && pathRef.current.length >= 2) {
-      const bounds = new kakao.LatLngBounds();
-      pathRef.current.forEach(p => bounds.extend(new kakao.LatLng(p.lat, p.lng)));
-      if (!bounds.isEmpty()) map.setBounds(bounds);
+    const W = 720;
+    const H = 280;
+
+    // Prefer the recorded route; if nothing was recorded (no movement / desktop
+    // testing), still render a map centered on the current position so the
+    // result card shows where the walk happened instead of an empty placeholder.
+    const remotePoints =
+      path.length >= 1
+        ? path.map(p => ({ lat: p.lat, lng: p.lng }))
+        : [lastKnownPosRef.current];
+    const remote = await fetchWalkSnapshot(remotePoints, W, H);
+    if (remote) return remote;
+
+    // ---- Local SVG fallback (works for any path length, incl. 0) ----
+    const PAD = 28;
+
+    const gridDefs =
+      `<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse">` +
+      `<path d="M40 0 L0 0 0 40" fill="none" stroke="#C5D8EE" stroke-width="0.5" opacity="0.6"/>` +
+      `</pattern></defs>`;
+    const background =
+      `<rect width="${W}" height="${H}" fill="#E8F0FA"/>` +
+      `<rect width="${W}" height="${H}" fill="url(#g)"/>`;
+
+    let body = '';
+    if (path.length >= 2) {
+      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+      for (const p of path) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      }
+      const latSpan = Math.max(maxLat - minLat, 1e-5);
+      const lngSpan = Math.max(maxLng - minLng, 1e-5);
+      const scale = Math.min((W - PAD * 2) / lngSpan, (H - PAD * 2) / latSpan);
+      const offsetX = (W - lngSpan * scale) / 2;
+      const offsetY = (H - latSpan * scale) / 2;
+      const toX = (lng: number) => offsetX + (lng - minLng) * scale;
+      const toY = (lat: number) => offsetY + (maxLat - lat) * scale;
+      const d = path
+        .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.lng).toFixed(1)},${toY(p.lat).toFixed(1)}`)
+        .join(' ');
+      const start = path[0];
+      const end = path[path.length - 1];
+      body =
+        `<path d="${d}" stroke="#1B4B8C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9"/>` +
+        `<circle cx="${toX(start.lng).toFixed(1)}" cy="${toY(start.lat).toFixed(1)}" r="9" fill="#4CAF50" stroke="white" stroke-width="3"/>` +
+        `<circle cx="${toX(end.lng).toFixed(1)}" cy="${toY(end.lat).toFixed(1)}" r="9" fill="#F44336" stroke="white" stroke-width="3"/>`;
+    } else if (path.length === 1) {
+      // Single fix — just drop a marker at the center
+      body =
+        `<circle cx="${W / 2}" cy="${H / 2}" r="11" fill="#1B4B8C" stroke="white" stroke-width="3"/>` +
+        `<text x="${W / 2}" y="${H / 2 + 40}" text-anchor="middle" font-family="'Noto Sans KR', sans-serif" font-size="16" font-weight="700" fill="#1B4B8C">현재 위치</text>`;
+    } else {
+      // No fixes at all — render an empty grid with a helper line so the card
+      // always has an image instead of an error placeholder.
+      body =
+        `<text x="${W / 2}" y="${H / 2 - 8}" text-anchor="middle" font-family="'Noto Sans KR', sans-serif" font-size="18" font-weight="700" fill="#1B4B8C">이동 경로가 기록되지 않았어요</text>` +
+        `<text x="${W / 2}" y="${H / 2 + 20}" text-anchor="middle" font-family="'Noto Sans KR', sans-serif" font-size="12" fill="#6A9FD4">GPS 신호가 잡힌 상태로 실제로 걸어야 경로가 그려져요</text>`;
     }
 
-    await new Promise(r => setTimeout(r, 800));
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+      gridDefs +
+      background +
+      body +
+      `</svg>`;
 
+    const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     try {
-      const snapshot = await Promise.race<string | null>([
-        domToPng(container, { scale: 2 }),
-        new Promise<null>(resolve => setTimeout(() => resolve(null), SNAPSHOT_TIMEOUT_MS)),
-      ]);
-      return snapshot ?? null;
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('SVG render failed'));
+        img.src = svgUrl;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, W, H);
+      return canvas.toDataURL('image/png');
     } catch (e) {
-      console.warn('Map snapshot failed', e);
+      console.warn('Path snapshot failed', e);
       return null;
     }
   }, []);
