@@ -264,7 +264,7 @@ export default function OnboardingStep3() {
                     profileImageUrl = await uploadProfileImage(step1.photoFile);
                   }
 
-                  await createPet({
+                  const createdPet = await createPet({
                     type: step1.petType ?? 'DOG',
                     name: step1.name,
                     breed: step1.breed,
