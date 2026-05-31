@@ -34,6 +34,14 @@ export interface CreatePetResponse {
   weightKg: number;
 }
 
+// 목록 조회용 경량 타입 (개수/이름만 필요)
+export interface PetSummary {
+  petId: number;
+  name: string;
+  type?: string;
+  breed?: string;
+}
+
 // ── Error classes ──────────────────────────────────────────────────────────────
 
 export class PetApiError extends Error {
@@ -99,6 +107,35 @@ export async function createPet(body: CreatePetBody): Promise<CreatePetResponse>
   }
 
   return data as CreatePetResponse;
+}
+
+/** GET /api/v1/pets — 내 반려동물 목록 조회 */
+export async function getPets(): Promise<PetSummary[]> {
+  const res = await safeFetch(`${API_BASE}/api/v1/pets`, {
+    method: 'GET',
+    headers: { ...authHeaders() },
+  });
+
+  let data: unknown;
+  try {
+    data = await res.json();
+  } catch {
+    throw new PetApiError(res.status, 'BAD_RESPONSE', `HTTP ${res.status} (non-JSON body)`);
+  }
+
+  if (!res.ok) {
+    const err = data as Record<string, string> | null;
+    throw new PetApiError(
+      res.status,
+      err?.code ?? 'UNKNOWN',
+      err?.message ?? `HTTP ${res.status}`,
+    );
+  }
+
+  // 배열 직접 반환 또는 { data: [...] } envelope 둘 다 허용
+  if (Array.isArray(data)) return data as PetSummary[];
+  const env = data as { data?: PetSummary[] } | null;
+  return env?.data ?? [];
 }
 
 /** POST /images — S3에 이미지 업로드 후 URL 반환 */

@@ -10,7 +10,6 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
-  const [autoLogin, setAutoLogin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
@@ -120,14 +119,8 @@ export default function LoginScreen() {
               <p style={{ fontSize: '11px', color: '#E53935', textAlign: 'center' }}>{error}</p>
             )}
 
-            {/* Auto login + Forgot PW */}
-            <div className="flex items-center justify-between pt-1">
-              <button onClick={() => setAutoLogin(v => !v)} className="flex items-center gap-2" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0" style={{ backgroundColor: autoLogin ? '#1B4B8C' : 'white', border: autoLogin ? '2px solid #1B4B8C' : '2px solid #BDBDBD', transition: 'all 0.2s' }}>
-                  {autoLogin && <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6L5 9L10 3" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                </div>
-                <span style={{ fontSize: '12px', color: autoLogin ? '#1B4B8C' : '#9E9E9E', fontWeight: autoLogin ? 600 : 400 }}>자동 로그인</span>
-              </button>
+            {/* Forgot PW */}
+            <div className="flex items-center justify-end pt-1">
               <button
                 onClick={() => navigate('/forgot-password')}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#6A9FD4', fontWeight: 500, padding: 0 }}
