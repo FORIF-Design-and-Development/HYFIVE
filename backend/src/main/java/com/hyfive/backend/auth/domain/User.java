@@ -97,4 +97,9 @@ public class User {
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
+
+    public void updateProfile(String name, String nickname) {
+        if (name !=null && !name.isBlank()) this.name = name;
+        if (nickname !=null && !nickname.isBlank()) this.nickname = nickname;
+    }
 }
