@@ -74,9 +74,6 @@ function Divider() {
 export default function SettingsScreen() {
   const navigate = useNavigate();
 
-  // Account
-  const [autoLogin, setAutoLogin] = useState(true);
-
   // Notification toggles
   const [notifUnrecorded, setNotifUnrecorded] = useState(true);
   const [notifWalk,       setNotifWalk]       = useState(true);
@@ -108,17 +105,10 @@ export default function SettingsScreen() {
             <div>
               <SectionHeader icon={<User size={14} style={{ color: '#6A9FD4' }} />} label="계정 관리" />
               <Card>
-                <RowToggle
-                  label="자동 로그인"
-                  sub={autoLogin ? '다음 실행 시 자동으로 로그인돼요' : '매번 로그인이 필요해요'}
-                  on={autoLogin}
-                  onToggle={() => setAutoLogin(v => !v)}
-                />
-                <Divider />
                 <RowLink
                   label="개인정보 수정"
-                  sub="이름·이메일 변경"
-                  onPress={() => {/* stub */}}
+                  sub="이름·닉네임 변경"
+                  onPress={() => navigate('/settings/profile')}
                 />
                 <Divider />
                 <RowLink
