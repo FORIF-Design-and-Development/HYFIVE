@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import MobileFrame from './MobileFrame';
 import { Eye, EyeOff, ChevronLeft } from 'lucide-react';
 import lionLogo from 'figma:asset/3d187befbd5f5281436e6022002bcf4bb8f9a5bd.png';
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
 export default function LoginScreen() {
   const navigate = useNavigate();
@@ -13,6 +15,24 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // 보이는 커스텀 버튼 위에 투명하게 겹쳐둔 실제 Google 버튼이 영역 전체를 덮도록
+  // 컨테이너 실제 너비를 측정해 GoogleLogin width로 넘긴다. (GIS는 240~400 범위만 허용)
+  const googleWrapRef = useRef<HTMLDivElement>(null);
+  const [googleBtnWidth, setGoogleBtnWidth] = useState(320);
+
+  useEffect(() => {
+    const el = googleWrapRef.current;
+    if (!el) return;
+    const update = () => {
+      const w = Math.round(el.getBoundingClientRect().width);
+      if (w > 0) setGoogleBtnWidth(Math.min(400, Math.max(240, w)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const canLogin = email.length > 0 && password.length > 0;
 
@@ -145,7 +165,7 @@ export default function LoginScreen() {
           </div>
 
           {/* Google Login — custom visual button + real Google button as transparent overlay */}
-          <div className="relative w-full" style={{ height: '50px' }}>
+          <div ref={googleWrapRef} className="relative w-full" style={{ height: '50px' }}>
             <div
               className="w-full rounded-xl flex items-center justify-center gap-3 transition-all"
               style={{ height: '50px', backgroundColor: 'white', border: '1.5px solid #E0E0E0', color: '#1C1C1C', fontSize: '14px', fontWeight: 600, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', opacity: googleLoading ? 0.6 : 1, pointerEvents: 'none' }}>
@@ -157,21 +177,32 @@ export default function LoginScreen() {
               </svg>
               {googleLoading ? '로그인 중...' : 'Google로 로그인'}
             </div>
-            <div
-              className="absolute inset-0 overflow-hidden"
-              style={{ opacity: 0, colorScheme: 'light' }}
-              aria-hidden>
-              <GoogleLogin
-                onSuccess={handleGoogleCredential}
-                onError={handleGoogleError}
-                useOneTap={false}
-                width="320"
-                theme="outline"
-                size="large"
-                shape="rectangular"
-                text="continue_with"
+            {GOOGLE_CLIENT_ID ? (
+              // 실제 Google 버튼을 컨테이너 전체에 맞춰 띄워(투명) 클릭 영역이 커스텀 버튼과 일치하도록.
+              <div
+                className="absolute inset-0 overflow-hidden flex items-center justify-center"
+                style={{ opacity: 0, colorScheme: 'light' }}
+                aria-hidden>
+                <GoogleLogin
+                  onSuccess={handleGoogleCredential}
+                  onError={handleGoogleError}
+                  useOneTap={false}
+                  width={String(googleBtnWidth)}
+                  theme="outline"
+                  size="large"
+                  shape="rectangular"
+                  text="continue_with"
+                />
+              </div>
+            ) : (
+              // clientId 미설정 시: 죽은 버튼 대신 명확히 안내
+              <button
+                onClick={() => setError('Google 로그인이 설정되지 않았습니다 (클라이언트 ID 누락)')}
+                className="absolute inset-0 w-full rounded-xl"
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                aria-label="Google로 로그인"
               />
-            </div>
+            )}
           </div>
 
           {/* Signup Link */}
