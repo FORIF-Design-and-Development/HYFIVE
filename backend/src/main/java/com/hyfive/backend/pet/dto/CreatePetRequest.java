@@ -1,5 +1,6 @@
 package com.hyfive.backend.pet.dto;
 
+import com.hyfive.backend.pet.domain.DogSize;
 import com.hyfive.backend.pet.domain.PetGender;
 import com.hyfive.backend.pet.domain.PetType;
 import jakarta.validation.Valid;
@@ -13,6 +14,8 @@ import java.util.List;
 public record CreatePetRequest(
         @NotNull(message = "동물 유형은 필수입니다.")
         PetType type,
+
+        DogSize dogSize,
 
         @NotBlank(message = "이름은 필수입니다.")
         String name,
