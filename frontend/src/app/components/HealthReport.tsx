@@ -136,10 +136,9 @@ export default function HealthReport() {
               <div className="px-4 space-y-3 pb-3">
                 {[
                   { label: '산책', value: '하루 평균 25분', compare: '권장 대비 83%', compareColor: '#1B4B8C', compareBg: '#E8F0FA', emoji: '🚶' },
-                  { label: '음수량', value: '하루 평균 180ml', compare: '권장 대비 72%', compareColor: '#F57C00', compareBg: '#FFF8E1', emoji: '💧' },
                   { label: '체중', value: '4.2 kg', compare: '지난달 대비 +0.1kg', compareColor: '#FFA726', compareBg: '#FFF8E1', emoji: '⚖️' },
                 ].map((m, i) => (
-                  <div key={i} className="flex items-center gap-3 py-2" style={{ borderBottom: i < 2 ? '1px solid #F5F5F5' : 'none' }}>
+                  <div key={i} className="flex items-center gap-3 py-2" style={{ borderBottom: i < 1 ? '1px solid #F5F5F5' : 'none' }}>
                     <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>{m.emoji}</span>
                     <div className="flex-1">
                       <p style={{ fontSize: '10px', color: '#9E9E9E' }}>{m.label}</p>
