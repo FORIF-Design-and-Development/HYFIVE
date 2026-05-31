@@ -28,6 +28,7 @@ import PetEditScreen from "./components/PetEditScreen";
 import PetSwitchScreen from "./components/PetSwitchScreen";
 import NotificationsScreen from "./components/NotificationsScreen";
 import SettingsScreen from "./components/SettingsScreen";
+import ProfileEditScreen from "./components/ProfileEditScreen";
 
 export const router = createBrowserRouter([
   { path: "/", Component: SplashScreen },
@@ -58,5 +59,6 @@ export const router = createBrowserRouter([
   { path: "/profile/switch", Component: PetSwitchScreen },
   { path: "/notifications", Component: NotificationsScreen },
   { path: "/settings", Component: SettingsScreen },
+  { path: "/settings/profile", Component: ProfileEditScreen },
   { path: "*", element: <Navigate to="/" replace /> },
 ]);

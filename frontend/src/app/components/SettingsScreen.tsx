@@ -107,8 +107,8 @@ export default function SettingsScreen() {
               <Card>
                 <RowLink
                   label="개인정보 수정"
-                  sub="이름·이메일 변경"
-                  onPress={() => {/* stub */}}
+                  sub="이름·닉네임 변경"
+                  onPress={() => navigate('/settings/profile')}
                 />
                 <Divider />
                 <RowLink
