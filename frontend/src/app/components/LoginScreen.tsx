@@ -165,11 +165,11 @@ export default function LoginScreen() {
               클릭이 무시된다(버튼은 보이지만 안 눌림). 그래서 공식 버튼을 직접 렌더한다. */}
           <div
             ref={googleWrapRef}
-            className="w-full flex justify-center"
-            style={{ minHeight: '44px', colorScheme: 'light' }}>
+            className="w-full flex items-center justify-center"
+            style={{ height: '50px', colorScheme: 'light' }}>
             {GOOGLE_CLIENT_ID ? (
               googleLoading ? (
-                <div className="flex items-center justify-center gap-2" style={{ height: '44px' }}>
+                <div className="flex items-center justify-center gap-2" style={{ height: '50px' }}>
                   <div className="rounded-full animate-spin" style={{ width: '18px', height: '18px', border: '2px solid #E8F0FA', borderTopColor: '#1B4B8C' }} />
                   <span style={{ fontSize: '13px', color: '#6A9FD4', fontWeight: 600 }}>로그인 중...</span>
                 </div>
@@ -184,8 +184,8 @@ export default function LoginScreen() {
                     theme="outline"
                     size="large"
                     shape="rectangular"
-                    text="continue_with"
-                    logo_alignment="left"
+                    text="signin_with"
+                    logo_alignment="center"
                   />
                 )
               )
