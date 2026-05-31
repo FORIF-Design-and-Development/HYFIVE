@@ -160,29 +160,22 @@ export default function LoginScreen() {
             <div style={{ flex: 1, height: '1px', backgroundColor: '#E0E0E0' }} />
           </div>
 
-          {/* Google Login — custom visual button + real Google button as transparent overlay */}
-          <div ref={googleWrapRef} className="relative w-full" style={{ height: '50px' }}>
-            {/* 장식용(중복) 버튼 — 클릭/포커스 불가, AT에서 숨김 */}
-            <div
-              aria-hidden
-              className="w-full rounded-xl flex items-center justify-center gap-3 transition-all"
-              style={{ height: '50px', backgroundColor: 'white', border: '1.5px solid #E0E0E0', color: '#1C1C1C', fontSize: '14px', fontWeight: 600, boxShadow: '0 1px 4px rgba(0,0,0,0.06)', opacity: googleLoading ? 0.6 : 1, pointerEvents: 'none' }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-              </svg>
-              {googleLoading ? '로그인 중...' : 'Google로 로그인'}
-            </div>
+          {/* Google Login — 실제 GIS 버튼을 그대로 노출.
+              투명 오버레이로 커스텀 버튼을 덮는 방식은 GIS 클릭재킹 보호에 막혀
+              클릭이 무시된다(버튼은 보이지만 안 눌림). 그래서 공식 버튼을 직접 렌더한다. */}
+          <div
+            ref={googleWrapRef}
+            className="w-full flex justify-center"
+            style={{ minHeight: '44px', colorScheme: 'light' }}>
             {GOOGLE_CLIENT_ID ? (
-              // 실제 Google 버튼을 컨테이너 전체에 맞춰 띄워(투명) 클릭 영역이 커스텀 버튼과 일치하도록.
-              // 너비 측정이 끝난 뒤에만 마운트해 initialize가 1회만 실행되게 한다.
-              // aria-hidden은 두지 않는다(기능 버튼이라 AT에 노출되어야 함).
-              googleBtnWidth > 0 && (
-                <div
-                  className="absolute inset-0 overflow-hidden flex items-center justify-center"
-                  style={{ opacity: 0, colorScheme: 'light' }}>
+              googleLoading ? (
+                <div className="flex items-center justify-center gap-2" style={{ height: '44px' }}>
+                  <div className="rounded-full animate-spin" style={{ width: '18px', height: '18px', border: '2px solid #E8F0FA', borderTopColor: '#1B4B8C' }} />
+                  <span style={{ fontSize: '13px', color: '#6A9FD4', fontWeight: 600 }}>로그인 중...</span>
+                </div>
+              ) : (
+                // 너비 측정 후에만 마운트해 GIS initialize가 1회만 실행되게 한다. (측정값 0 = 미측정)
+                googleBtnWidth > 0 && (
                   <GoogleLogin
                     onSuccess={handleGoogleCredential}
                     onError={handleGoogleError}
@@ -192,17 +185,18 @@ export default function LoginScreen() {
                     size="large"
                     shape="rectangular"
                     text="continue_with"
+                    logo_alignment="left"
                   />
-                </div>
+                )
               )
             ) : (
-              // clientId 미설정 시: 죽은 버튼 대신 명확히 안내
+              // clientId 미설정 시: 명확히 안내
               <button
                 onClick={() => setError('Google 로그인이 설정되지 않았습니다 (클라이언트 ID 누락)')}
-                className="absolute inset-0 w-full rounded-xl"
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
-                aria-label="Google로 로그인"
-              />
+                className="w-full rounded-xl flex items-center justify-center gap-3"
+                style={{ height: '50px', backgroundColor: 'white', border: '1.5px solid #E0E0E0', color: '#1C1C1C', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                Google로 로그인
+              </button>
             )}
           </div>
 
