@@ -15,11 +15,15 @@ import javax.imageio.ImageIO;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -86,6 +90,93 @@ public class BaseOCRService implements OCRService {
         List<String> imageUrls = uploadImages(images);
 
         return new MedicalOcrResponseDto(rawText, extracted, imageUrls);
+    }
+
+    @Override
+    public MedicalOcrResponseDto analyzeMedicalBase64(String visitDate, String type, List<String> images) {
+        List<MultipartFile> decodedImages = decodeImages(images);
+        return analyzeMedical(visitDate, type, decodedImages);
+    }
+
+    private List<MultipartFile> decodeImages(List<String> images) {
+        if (images == null || images.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미지는 필수입니다.");
+        }
+
+        List<MultipartFile> decodedImages = new ArrayList<>();
+        for (int index = 0; index < images.size(); index++) {
+            decodedImages.add(decodeImage(images.get(index), index));
+        }
+        return decodedImages;
+    }
+
+    private MultipartFile decodeImage(String image, int index) {
+        if (image == null || image.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미지는 필수입니다.");
+        }
+
+        String encoded = image.trim();
+        String contentType = null;
+        int commaIndex = encoded.indexOf(',');
+        if (encoded.startsWith("data:") && commaIndex > 0) {
+            contentType = parseContentType(encoded.substring(0, commaIndex));
+            encoded = encoded.substring(commaIndex + 1);
+        }
+
+        byte[] bytes;
+        try {
+            bytes = Base64.getDecoder().decode(encoded.replaceAll("\\s+", ""));
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "이미지 데이터가 올바르지 않습니다.");
+        }
+
+        ImageFormat format = detectFormat(bytes, contentType);
+        return new Base64ImageMultipartFile("image", "medical-ocr-" + index + format.suffix(), format.contentType(), bytes);
+    }
+
+    private String parseContentType(String dataUrlHeader) {
+        int separatorIndex = dataUrlHeader.indexOf(';');
+        if (separatorIndex <= "data:".length()) {
+            return null;
+        }
+        return dataUrlHeader.substring("data:".length(), separatorIndex);
+    }
+
+    private ImageFormat detectFormat(byte[] bytes, String contentType) {
+        if (bytes.length >= 3
+                && (bytes[0] & 0xFF) == 0xFF
+                && (bytes[1] & 0xFF) == 0xD8
+                && (bytes[2] & 0xFF) == 0xFF) {
+            return new ImageFormat(".jpg", "image/jpeg");
+        }
+        if (bytes.length >= 8
+                && (bytes[0] & 0xFF) == 0x89
+                && bytes[1] == 'P'
+                && bytes[2] == 'N'
+                && bytes[3] == 'G') {
+            return new ImageFormat(".png", "image/png");
+        }
+        if (bytes.length >= 2 && bytes[0] == 'B' && bytes[1] == 'M') {
+            return new ImageFormat(".bmp", "image/bmp");
+        }
+        if (bytes.length >= 4
+                && ((bytes[0] == 'I' && bytes[1] == 'I')
+                || (bytes[0] == 'M' && bytes[1] == 'M'))) {
+            return new ImageFormat(".tiff", "image/tiff");
+        }
+        if ("image/jpeg".equals(contentType)) {
+            return new ImageFormat(".jpg", contentType);
+        }
+        if ("image/png".equals(contentType)) {
+            return new ImageFormat(".png", contentType);
+        }
+        if ("image/bmp".equals(contentType)) {
+            return new ImageFormat(".bmp", contentType);
+        }
+        if ("image/tiff".equals(contentType)) {
+            return new ImageFormat(".tiff", contentType);
+        }
+        return new ImageFormat(".png", "image/png");
     }
 
     private List<String> uploadImages(List<MultipartFile> images) {
@@ -487,5 +578,63 @@ public class BaseOCRService implements OCRService {
             case ".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff" -> suffix;
             default -> ".png";
         };
+    }
+
+    private record ImageFormat(String suffix, String contentType) {
+    }
+
+    private static class Base64ImageMultipartFile implements MultipartFile {
+
+        private final String name;
+        private final String originalFilename;
+        private final String contentType;
+        private final byte[] bytes;
+
+        private Base64ImageMultipartFile(String name, String originalFilename, String contentType, byte[] bytes) {
+            this.name = name;
+            this.originalFilename = originalFilename;
+            this.contentType = contentType;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getOriginalFilename() {
+            return originalFilename;
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return bytes.length == 0;
+        }
+
+        @Override
+        public long getSize() {
+            return bytes.length;
+        }
+
+        @Override
+        public byte[] getBytes() {
+            return bytes.clone();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public void transferTo(File dest) throws IOException {
+            Files.write(dest.toPath(), bytes);
+        }
     }
 }

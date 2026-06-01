@@ -10,4 +10,6 @@ public interface OCRService {
     MedicalOcrResponseDto analyze(MultipartFile image);
 
     MedicalOcrResponseDto analyzeMedical(String visitDate, String type, List<MultipartFile> images);
+
+    MedicalOcrResponseDto analyzeMedicalBase64(String visitDate, String type, List<String> images);
 }
