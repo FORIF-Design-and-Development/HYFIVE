@@ -45,10 +45,7 @@ export default function MedicalUploadScreen() {
   const [analyzeStep, setAnalyzeStep] = useState(0);
   const [ocrData, setOcrData] = useState<OcrData>({ hospital: '', date: '', items: '', diagnosis: '', amount: '' });
   const [showTypePicker, setShowTypePicker] = useState(false);
-<<<<<<< Updated upstream
-=======
   const [ocrImageUrls, setOcrImageUrls] = useState<string[]>([]);
->>>>>>> Stashed changes
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -124,11 +121,6 @@ export default function MedicalUploadScreen() {
     setSaving(true);
     setSaveError(null);
     try {
-      const base64List = await Promise.all(receiptFiles.map(readAsDataUrl));
-      const imageBase64 = base64List.map(b => {
-        const idx = b.indexOf(',');
-        return idx >= 0 ? b.substring(idx + 1) : b;
-      });
       await uploadMedicalRecord({
         type: TYPE_MAP[medType],
         clinicName: ocrData.hospital,
@@ -136,11 +128,7 @@ export default function MedicalUploadScreen() {
         content: ocrData.items,
         diagnosis: ocrData.diagnosis,
         totalCost: ocrData.amount,
-<<<<<<< Updated upstream
-        image: imageBase64,
-=======
         image: ocrImageUrls,
->>>>>>> Stashed changes
       });
       navigate('/medical-records', { replace: true });
     } catch (e) {
