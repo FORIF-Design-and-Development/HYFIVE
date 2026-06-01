@@ -1,6 +1,7 @@
 package com.hyfive.backend.medical.controller;
 
 import com.hyfive.backend.common.ApiResponse;
+import com.hyfive.backend.medical.dto.MedicalOcrRequestDto;
 import com.hyfive.backend.medical.dto.MedicalOcrResponseDto;
 import com.hyfive.backend.medical.dto.MedicalRecordDto;
 import com.hyfive.backend.medical.dto.MedicalRecordSaveRequestDto;
@@ -47,6 +48,18 @@ public class MedicalController {
             @RequestPart("image") List<MultipartFile> images
     ) {
         MedicalOcrResponseDto response = ocrService.analyzeMedical(visitDate, type, images);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping(value = "/ocr/medical", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<ApiResponse<MedicalOcrResponseDto>> analyzeMedicalBase64(
+            @RequestBody MedicalOcrRequestDto requestDto
+    ) {
+        MedicalOcrResponseDto response = ocrService.analyzeMedicalBase64(
+                requestDto.getVisitDate(),
+                requestDto.getType(),
+                requestDto.getImage()
+        );
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }
