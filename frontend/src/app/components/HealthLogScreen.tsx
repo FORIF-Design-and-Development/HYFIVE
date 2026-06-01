@@ -71,7 +71,7 @@ const symptomChips = [
   { id: 'itch',     label: '가려움',   emoji: '🐾' },
   { id: 'appetite', label: '식욕부진', emoji: '🍽️' },
   { id: 'lethargy', label: '기력저하', emoji: '😴' },
-  { id: 'limp',     label: '跛行',     emoji: '🦵' },
+  { id: 'limp',     label: '파행',     emoji: '🦵' },
   { id: 'eye',      label: '눈 분비물', emoji: '👁️' },
   { id: 'ear',      label: '귀 긁음',  emoji: '👂' },
 ];
@@ -601,3 +601,4 @@ export default function HealthLogScreen() {
     </MobileFrame>
   );
 }
+

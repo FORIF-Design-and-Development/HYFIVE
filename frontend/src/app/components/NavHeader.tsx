@@ -1,6 +1,6 @@
 import { ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import lionLogo from 'figma:asset/3d187befbd5f5281436e6022002bcf4bb8f9a5bd.png';
+import lionLogo from 'figma:asset/49bb8708313cd2aee9d6c816e878c53a7e094241.png';
 
 interface NavHeaderProps {
   title: string;
