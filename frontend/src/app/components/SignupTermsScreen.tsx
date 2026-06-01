@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
-import lionLogo from 'figma:asset/3d187befbd5f5281436e6022002bcf4bb8f9a5bd.png';
+import lionLogo from 'figma:asset/49bb8708313cd2aee9d6c816e878c53a7e094241.png';
 
 interface Term {
   id: string;

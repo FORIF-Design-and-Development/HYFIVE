@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import MobileFrame from './MobileFrame';
 import { Eye, EyeOff, ChevronLeft } from 'lucide-react';
-import lionLogo from 'figma:asset/3d187befbd5f5281436e6022002bcf4bb8f9a5bd.png';
+import lionLogo from 'figma:asset/49bb8708313cd2aee9d6c816e878c53a7e094241.png';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
