@@ -259,12 +259,16 @@ export default function OnboardingStep3() {
                 setSaving(true);
                 setSaveError('');
                 try {
+<<<<<<< Updated upstream
                   let profileImageUrl: string | undefined;
                   if (step1.photoFile) {
                     profileImageUrl = await uploadProfileImage(step1.photoFile);
                   }
 
                   await createPet({
+=======
+                  const pet = await createPet({
+>>>>>>> Stashed changes
                     type: step1.petType ?? 'DOG',
                     name: step1.name,
                     breed: step1.breed,
@@ -280,6 +284,7 @@ export default function OnboardingStep3() {
                       isCompleted,
                     })),
                   });
+                  localStorage.setItem('hyfive_petId', String(pet.petId));
                   setConfirmed(true);
                   navigate('/home');
                 } catch (e) {

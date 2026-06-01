@@ -45,6 +45,10 @@ export default function MedicalUploadScreen() {
   const [analyzeStep, setAnalyzeStep] = useState(0);
   const [ocrData, setOcrData] = useState<OcrData>({ hospital: '', date: '', items: '', diagnosis: '', amount: '' });
   const [showTypePicker, setShowTypePicker] = useState(false);
+<<<<<<< Updated upstream
+=======
+  const [ocrImageUrls, setOcrImageUrls] = useState<string[]>([]);
+>>>>>>> Stashed changes
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -80,13 +84,6 @@ export default function MedicalUploadScreen() {
     });
   };
 
-  const readAsDataUrl = (file: File): Promise<string> => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result ?? ''));
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsDataURL(file);
-  });
-
   const handleAnalyze = async () => {
     setScreenState('analyzing');
     setAnalyzeStep(0);
@@ -103,7 +100,8 @@ export default function MedicalUploadScreen() {
 
       clearInterval(interval);
 
-      const { extracted } = result;
+      const { extracted, imageUrls } = result;
+      setOcrImageUrls(imageUrls ?? []);
       setOcrData({
         hospital: extracted.clinicName ?? '',
         date: extracted.visitDate || selectedDate,
@@ -113,6 +111,7 @@ export default function MedicalUploadScreen() {
       });
     } catch (e) {
       clearInterval(interval);
+      setOcrImageUrls([]);
       setOcrData({ hospital: '', date: selectedDate, items: '', diagnosis: '', amount: '' });
       setOcrError(e instanceof Error ? e.message : 'OCR 분석에 실패했습니다. 직접 입력해주세요.');
     }
@@ -137,7 +136,11 @@ export default function MedicalUploadScreen() {
         content: ocrData.items,
         diagnosis: ocrData.diagnosis,
         totalCost: ocrData.amount,
+<<<<<<< Updated upstream
         image: imageBase64,
+=======
+        image: ocrImageUrls,
+>>>>>>> Stashed changes
       });
       navigate('/medical-records', { replace: true });
     } catch (e) {
@@ -417,3 +420,4 @@ export default function MedicalUploadScreen() {
     </MobileFrame>
   );
 }
+

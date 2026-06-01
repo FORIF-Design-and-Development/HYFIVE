@@ -238,6 +238,7 @@ export default function MedicalRecordsScreen() {
                               <p style={{ fontSize: '11px', color: '#6A9FD4' }}>처방 내역이 없어요</p>
                             )}
                           </div>
+
                         </div>
                       </div>
                     )}

@@ -158,14 +158,19 @@ export async function analyzeMedicalOcr(
   return parseEnvelope<MedicalOcrResult>(res);
 }
 
-export async function uploadMedicalRecord(body: MedicalUploadBody): Promise<MedicalRecordApi> {
+export async function uploadMedicalRecord(body: MedicalUploadBody): Promise<MedicalRecordApi | null> {
   const petId = Number(getPetId());
   const res = await safeFetch(`${API_BASE}/api/upload/medical`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ ...body, petId }),
   });
-  return parseEnvelope<MedicalRecordApi>(res);
+  if (!res.ok) return parseEnvelope<MedicalRecordApi>(res);
+  try {
+    return await parseEnvelope<MedicalRecordApi>(res);
+  } catch {
+    return null;
+  }
 }
 
 export async function getLatestMedicalSummary(): Promise<MedicalLatestSummary> {
@@ -174,3 +179,4 @@ export async function getLatestMedicalSummary(): Promise<MedicalLatestSummary> {
   });
   return parseEnvelope<MedicalLatestSummary>(res);
 }
+
