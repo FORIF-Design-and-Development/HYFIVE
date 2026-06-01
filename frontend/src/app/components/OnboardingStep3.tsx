@@ -265,6 +265,7 @@ export default function OnboardingStep3() {
                   }
 
                   const pet = await createPet({
+                  const createdPet = await createPet({
                     type: step1.petType ?? 'DOG',
                     name: step1.name,
                     breed: step1.breed,
@@ -281,6 +282,7 @@ export default function OnboardingStep3() {
                     })),
                   });
                   localStorage.setItem('hyfive_petId', String(pet.petId));
+                  localStorage.setItem('hyfive_petId', String(createdPet.petId));
                   setConfirmed(true);
                   navigate('/home');
                 } catch (e) {

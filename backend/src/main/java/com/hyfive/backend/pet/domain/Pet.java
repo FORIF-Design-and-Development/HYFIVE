@@ -1,20 +1,7 @@
 package com.hyfive.backend.pet.domain;
 
 import com.hyfive.backend.auth.domain.User;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -52,6 +39,10 @@ public class Pet {
     @Column(name = "is_neutered", nullable = false)
     private Boolean isNeutered;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "dog_size", length = 10)
+    private DogSize dogSize;
+
     @Column(name = "checkup_date")
     private LocalDate lastCheckupDate;
 
@@ -71,23 +62,16 @@ public class Pet {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    protected Pet() {
-    }
+    protected Pet() {}
 
     private Pet(
-            User user,
-            PetType type,
-            String name,
-            String breed,
-            LocalDate birthdate,
-            PetGender gender,
-            Boolean isNeutered,
-            LocalDate lastCheckupDate,
-            String preExistingIllness,
-            String profileImageUrl
+            User user, PetType type, DogSize dogSize, String name, String breed,
+            LocalDate birthdate, PetGender gender, Boolean isNeutered,
+            LocalDate lastCheckupDate, String preExistingIllness, String profileImageUrl
     ) {
         this.user = user;
         this.type = type;
+        this.dogSize = dogSize;
         this.name = name;
         this.breed = breed;
         this.birthdate = birthdate;
@@ -99,33 +83,17 @@ public class Pet {
     }
 
     public static Pet create(
-            User user,
-            PetType type,
-            String name,
-            String breed,
-            LocalDate birthdate,
-            PetGender gender,
-            Boolean isNeutered,
-            LocalDate lastCheckupDate,
-            String preExistingIllness,
-            String profileImageUrl
+            User user, PetType type, DogSize dogSize, String name, String breed,
+            LocalDate birthdate, PetGender gender, Boolean isNeutered,
+            LocalDate lastCheckupDate, String preExistingIllness, String profileImageUrl
     ) {
-        return new Pet(
-                user,
-                type,
-                name,
-                breed,
-                birthdate,
-                gender,
-                isNeutered,
-                lastCheckupDate,
-                preExistingIllness,
-                profileImageUrl
-        );
+        return new Pet(user, type, dogSize, name, breed, birthdate, gender,
+                isNeutered, lastCheckupDate, preExistingIllness, profileImageUrl);
     }
 
-    public void updateProfileImageUrl(String profileImageUrl) {
-        this.profileImageUrl = profileImageUrl;
+    public void update(Boolean isNeutered, String profileImageUrl) {
+        if (isNeutered != null) this.isNeutered = isNeutered;
+        if (profileImageUrl != null) this.profileImageUrl = profileImageUrl;
     }
 
     @PrePersist
@@ -140,55 +108,18 @@ public class Pet {
         this.updatedAt = LocalDateTime.now();
     }
 
-    public Long getPetId() {
-        return petId;
-    }
-
-    public PetType getType() {
-        return type;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getBreed() {
-        return breed;
-    }
-
-    public LocalDate getBirthdate() {
-        return birthdate;
-    }
-
-    public PetGender getGender() {
-        return gender;
-    }
-
-    public Boolean getIsNeutered() {
-        return isNeutered;
-    }
-
-    public LocalDate getLastCheckupDate() {
-        return lastCheckupDate;
-    }
-
-    public String getPreExistingIllness() {
-        return preExistingIllness;
-    }
-
-    public String getProfileImageUrl() {
-        return profileImageUrl;
-    }
-
-    public User getUser() {
-        return user;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
+    public Long getPetId() { return petId; }
+    public PetType getType() { return type; }
+    public DogSize getDogSize() { return dogSize; }
+    public String getName() { return name; }
+    public String getBreed() { return breed; }
+    public LocalDate getBirthdate() { return birthdate; }
+    public PetGender getGender() { return gender; }
+    public Boolean getIsNeutered() { return isNeutered; }
+    public LocalDate getLastCheckupDate() { return lastCheckupDate; }
+    public String getPreExistingIllness() { return preExistingIllness; }
+    public String getProfileImageUrl() { return profileImageUrl; }
+    public User getUser() { return user; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }
