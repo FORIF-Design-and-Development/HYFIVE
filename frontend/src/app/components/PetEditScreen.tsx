@@ -1,18 +1,44 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import NavHeader from './NavHeader';
-import { Camera, Check, ChevronDown, ChevronUp, Image, X } from 'lucide-react';
+import { Camera, Check, Image, X } from 'lucide-react';
+import { type PetProfileResponse, getActivePet, updatePet, petEmoji } from '../api/profile';
+import { uploadProfileImage } from '../api/onboarding';
 
 type NeuterStatus = 'completed' | 'not_done' | 'unknown';
 
+function neuterStatusFromBool(isNeutered: boolean): NeuterStatus {
+  return isNeutered ? 'completed' : 'not_done';
+}
+
 export default function PetEditScreen() {
   const navigate = useNavigate();
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  const [pet, setPet] = useState<PetProfileResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [neuterStatus, setNeuterStatus] = useState<NeuterStatus>('completed');
-  const [weight, setWeight] = useState('28.5');
+  const [weight, setWeight] = useState('');
   const [weightError, setWeightError] = useState('');
   const [saved, setSaved] = useState(false);
   const [showPhotoSheet, setShowPhotoSheet] = useState(false);
+  const [localPhotoUrl, setLocalPhotoUrl] = useState<string | null>(null);
+  const [pendingPhotoUrl, setPendingPhotoUrl] = useState<string | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  useEffect(() => {
+    getActivePet()
+      .then((data) => {
+        setPet(data);
+        setNeuterStatus(neuterStatusFromBool(data.isNeutered));
+        setWeight(data.weightKg != null ? String(data.weightKg) : '');
+      })
+      .catch(() => setError('반려동물 정보를 불러오지 못했습니다.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleWeightChange = (val: string) => {
     setWeight(val);
@@ -29,49 +55,120 @@ export default function PetEditScreen() {
     setWeightError('');
   };
 
-  const handleSave = () => {
-    if (weightError || !weight) return;
-    setSaved(true);
-    setTimeout(() => navigate('/home'), 900);
+  const handlePhotoFile = async (file: File) => {
+    setShowPhotoSheet(false);
+    const preview = URL.createObjectURL(file);
+    setLocalPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return preview;
+    });
+    setPhotoUploading(true);
+    try {
+      const s3Url = await uploadProfileImage(file);
+      setPendingPhotoUrl(s3Url);
+    } catch {
+      setError('사진 업로드에 실패했습니다. 다시 시도해주세요.');
+      setLocalPhotoUrl(null);
+    } finally {
+      setPhotoUploading(false);
+    }
   };
+
+  const handleSave = async () => {
+    if (weightError || !weight || !pet) return;
+    setSaved(true);
+    try {
+      await updatePet(pet.petId, {
+        isNeutered: neuterStatus === 'completed',
+        weightKg: parseFloat(weight),
+        ...(pendingPhotoUrl ? { profileImageUrl: pendingPhotoUrl } : {}),
+      });
+      setTimeout(() => navigate('/home'), 900);
+    } catch {
+      setSaved(false);
+      setError('저장에 실패했습니다. 다시 시도해주세요.');
+    }
+  };
+
+  const currentPhotoUrl = localPhotoUrl ?? pet?.profileImageUrl ?? null;
 
   const neuterOptions: { value: NeuterStatus; label: string; desc: string; emoji: string }[] = [
     { value: 'completed', label: '중성화 완료', desc: '수술을 마쳤어요', emoji: '✅' },
     { value: 'not_done', label: '미실시', desc: '아직 수술 전이에요', emoji: '⭕' },
-    { value: 'unknown', label: '모름', desc: '입양 전 상태 불확실', emoji: '❔' },
   ];
+
+  if (loading) {
+    return (
+      <MobileFrame>
+        <div className="h-full flex items-center justify-center" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+          <p style={{ fontSize: '13px', color: '#9E9E9E' }}>불러오는 중...</p>
+        </div>
+      </MobileFrame>
+    );
+  }
 
   return (
     <MobileFrame>
       <div className="h-full flex flex-col" style={{ fontFamily: "'Noto Sans KR', sans-serif", backgroundColor: '#F5F7FC' }}>
-        <NavHeader title="정보 수정" subtitle="코코의 정보를 업데이트하세요" />
+        <NavHeader title="정보 수정" subtitle={pet ? `${pet.name}의 정보를 업데이트하세요` : '정보를 업데이트하세요'} />
 
         <div className="flex-1 overflow-y-auto">
           <div className="px-4 pt-5 space-y-5 pb-6">
+
+            {/* Error banner */}
+            {error && (
+              <div className="rounded-xl px-4 py-3" style={{ backgroundColor: '#FFF3F3', border: '1px solid #FFCDD2' }}>
+                <p style={{ fontSize: '12px', color: '#C62828' }}>{error}</p>
+              </div>
+            )}
 
             {/* Section: Pet Photo */}
             <section>
               <SectionLabel num={1} text="반려동물 사진" />
               <div className="bg-white rounded-2xl p-5 flex flex-col items-center gap-3" style={{ border: '1px solid #E0E0E0', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
+                {/* Hidden file inputs */}
+                <input
+                  ref={galleryInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoFile(f); }}
+                />
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhotoFile(f); }}
+                />
+
                 {/* Avatar */}
                 <div className="relative">
                   <div
-                    className="w-24 h-24 rounded-2xl flex items-center justify-center"
+                    className="w-24 h-24 rounded-2xl flex items-center justify-center overflow-hidden"
                     style={{ background: 'linear-gradient(135deg, #E8F0FA 0%, #C5D8EE 100%)', border: '2px solid #C5D8EE' }}
                   >
-                    <span style={{ fontSize: '52px' }}>🐶</span>
+                    {currentPhotoUrl ? (
+                      <img src={currentPhotoUrl} alt={pet?.name ?? ''} className="w-full h-full object-cover" />
+                    ) : (
+                      <span style={{ fontSize: '52px' }}>{pet ? petEmoji(pet.type) : '🐾'}</span>
+                    )}
                   </div>
                   <button
                     onClick={() => setShowPhotoSheet(true)}
+                    disabled={photoUploading}
                     className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: '#1B4B8C', border: '2.5px solid white', boxShadow: '0 2px 8px rgba(27,75,140,0.35)', cursor: 'pointer' }}
+                    style={{ backgroundColor: photoUploading ? '#9E9E9E' : '#1B4B8C', border: '2.5px solid white', boxShadow: '0 2px 8px rgba(27,75,140,0.35)', cursor: photoUploading ? 'not-allowed' : 'pointer' }}
                   >
                     <Camera size={14} style={{ color: 'white' }} />
                   </button>
                 </div>
                 <div className="text-center">
-                  <p style={{ fontSize: '13px', fontWeight: 700, color: '#1C1C1C' }}>코코</p>
-                  <p style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '1px' }}>탭하여 사진 변경</p>
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: '#1C1C1C' }}>{pet?.name ?? ''}</p>
+                  <p style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '1px' }}>
+                    {photoUploading ? '업로드 중...' : '탭하여 사진 변경'}
+                  </p>
                 </div>
 
                 <div className="flex gap-2 w-full">
@@ -124,71 +221,33 @@ export default function PetEditScreen() {
             <section>
               <SectionLabel num={3} text="현재 체중" />
               <div className="bg-white rounded-2xl p-5" style={{ border: '1px solid #E0E0E0', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-                <div className="flex items-center gap-3">
-                  {/* Stepper */}
-                  <button
-                    onClick={() => adjustWeight(-0.5)}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                    style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}
-                  >
-                    <ChevronDown size={18} style={{ color: '#1B4B8C' }} />
-                  </button>
-
-                  {/* Input */}
-                  <div className="flex-1 relative">
+                {/* Main stepper row */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-baseline gap-2">
                     <input
                       type="number"
                       value={weight}
                       onChange={(e) => handleWeightChange(e.target.value)}
-                      className="w-full rounded-xl text-center outline-none transition-all"
+                      className="w-full text-center outline-none bg-transparent"
                       style={{
-                        height: '52px',
-                        fontSize: '22px',
+                        fontSize: '36px',
                         fontWeight: 800,
-                        color: '#1B4B8C',
-                        backgroundColor: '#F8FAFF',
-                        border: weightError ? '2px solid #EF5350' : '2px solid #C5D8EE',
+                        color: weightError ? '#EF5350' : '#0D2B5E',
                         fontFamily: "'Noto Sans KR', sans-serif",
+                        border: 'none',
+                        lineHeight: 1,
                       }}
                       step="0.1"
                       min="0.1"
                       max="200"
                     />
-                    <span
-                      className="absolute right-3 top-1/2 -translate-y-1/2"
-                      style={{ fontSize: '13px', fontWeight: 600, color: '#6A9FD4' }}
-                    >
-                      kg
-                    </span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#6A9FD4', marginTop: '2px' }}>kg</span>
                   </div>
-
-                  <button
-                    onClick={() => adjustWeight(0.5)}
-                    className="w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90"
-                    style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}
-                  >
-                    <ChevronUp size={18} style={{ color: '#1B4B8C' }} />
-                  </button>
                 </div>
 
-                {weightError ? (
-                  <p style={{ fontSize: '11px', color: '#EF5350', marginTop: '8px', textAlign: 'center' }}>{weightError}</p>
-                ) : (
-                  <p style={{ fontSize: '11px', color: '#9E9E9E', marginTop: '8px', textAlign: 'center' }}>
-                    이전 기록: <span style={{ fontWeight: 700 }}>27.8 kg</span> (2025.02.10) · <span style={{ color: '#1B4B8C', fontWeight: 600 }}>+0.7 kg</span>
-                  </p>
+                {weightError && (
+                  <p style={{ fontSize: '11px', color: '#EF5350', marginTop: '10px', textAlign: 'center' }}>{weightError}</p>
                 )}
-
-                {/* Weight guide */}
-                <div
-                  className="rounded-xl p-3 mt-3 flex items-center gap-2"
-                  style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}
-                >
-                  <span style={{ fontSize: '16px', flexShrink: 0 }}>📊</span>
-                  <p style={{ fontSize: '11px', color: '#1B4B8C', fontWeight: 500 }}>
-                    골든 리트리버 성체 평균 체중: <span style={{ fontWeight: 700 }}>25~35 kg</span> — 코코는 정상 범위예요 ✅
-                  </p>
-                </div>
               </div>
             </section>
 
@@ -261,7 +320,7 @@ export default function PetEditScreen() {
             <div className="px-5 py-5 space-y-3" style={{ paddingBottom: '32px' }}>
               {/* Camera */}
               <button
-                onClick={() => setShowPhotoSheet(false)}
+                onClick={() => cameraInputRef.current?.click()}
                 className="w-full flex items-center gap-4 px-5 rounded-2xl transition-all active:scale-[0.98]"
                 style={{
                   height: '79px',
@@ -282,7 +341,7 @@ export default function PetEditScreen() {
 
               {/* Gallery */}
               <button
-                onClick={() => setShowPhotoSheet(false)}
+                onClick={() => galleryInputRef.current?.click()}
                 className="w-full flex items-center gap-4 px-5 rounded-2xl transition-all active:scale-[0.98]"
                 style={{
                   height: '79px',
