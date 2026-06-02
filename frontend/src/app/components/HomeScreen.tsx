@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import BottomNav from './BottomNav';
 import { Bell, Camera, PenLine, ChevronRight, AlertCircle } from 'lucide-react';
+import { type PetProfileResponse, getActivePet, petEmoji, petTag } from '../api/profile';
 
 const recentActivity = [
   { id: 1, date: '3/24', type: 'medical', icon: '🏥', title: '진료 기록', desc: '하나동물병원 · 피부과 진료', tag: 'AI 자동 분류', tagColor: '#1B4B8C', tagBg: '#E8F0FA' },
@@ -17,6 +19,16 @@ const alerts = [
 
 export default function HomeScreen() {
   const navigate = useNavigate();
+  const [pet, setPet] = useState<PetProfileResponse | null>(null);
+  const [petLoading, setPetLoading] = useState(true);
+  const [petError, setPetError] = useState(false);
+
+  useEffect(() => {
+    getActivePet()
+      .then(setPet)
+      .catch(() => setPetError(true))
+      .finally(() => setPetLoading(false));
+  }, []);
 
   return (
     <MobileFrame>
@@ -46,23 +58,49 @@ export default function HomeScreen() {
               style={{ background: 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)', boxShadow: '0 4px 16px rgba(27,75,140,0.25)' }}
               onClick={() => navigate('/profile')}
             >
-              <div className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)' }}>
-                <span style={{ fontSize: '30px' }}>🐶</span>
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <p style={{ fontSize: '16px', fontWeight: 700, color: 'white' }}>코코</p>
-                  <span className="px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.2)', fontSize: '10px', color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>대형견</span>
+              {petLoading ? (
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-full flex-shrink-0" style={{ backgroundColor: 'rgba(255,255,255,0.15)' }} />
+                  <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>불러오는 중...</p>
                 </div>
-                <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.8)', marginTop: '2px' }}>골든 리트리버 · 만 4세 · 28.5kg</p>
-                <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.65)', marginTop: '1px' }}>수컷 · 중성화 완료</p>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); navigate('/profile'); }}
-                style={{ color: 'rgba(255,255,255,0.7)', background: 'none', border: 'none', cursor: 'pointer' }}
-              >
-                <ChevronRight size={18} />
-              </button>
+              ) : petError ? (
+                <div className="flex-1">
+                  <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>프로필을 불러오지 못했습니다</p>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>탭하여 프로필로 이동</p>
+                </div>
+              ) : (
+                <>
+                  <div className="w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.2)', border: '2px solid rgba(255,255,255,0.4)' }}>
+                    {pet?.profileImageUrl ? (
+                      <img src={pet.profileImageUrl} alt={pet.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span style={{ fontSize: '30px' }}>{pet ? petEmoji(pet.type) : '🐾'}</span>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p style={{ fontSize: '16px', fontWeight: 700, color: 'white' }}>{pet?.name ?? '—'}</p>
+                      {pet && (
+                        <span className="px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(255,255,255,0.2)', fontSize: '10px', color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>
+                          {petTag(pet.type, pet.dogSize)}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.8)', marginTop: '2px' }}>
+                      {[pet?.breed, pet?.ageYears != null ? `만 ${pet.ageYears}세` : null, pet?.weightKg != null ? `${pet.weightKg}kg` : null].filter(Boolean).join(' · ')}
+                    </p>
+                    <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.65)', marginTop: '1px' }}>
+                      {pet ? `${pet.gender === 'MALE' ? '수컷' : '암컷'} · ${pet.isNeutered ? '중성화 완료' : '중성화 미실시'}` : ''}
+                    </p>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate('/profile'); }}
+                    style={{ color: 'rgba(255,255,255,0.7)', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

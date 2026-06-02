@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import NavHeader from './NavHeader';
 import { Check, Plus, ChevronRight, Star } from 'lucide-react';
+import {
+  type PetProfileResponse,
+  listPets,
+  activatePet,
+  petEmoji,
+  petTag,
+  petGenderText,
+} from '../api/profile';
 
-interface Pet {
+interface PetDisplay {
   id: number;
   name: string;
   breed: string;
@@ -13,52 +21,62 @@ interface Pet {
   gender: string;
   emoji: string;
   isActive: boolean;
-  hScore: number;
   tag: string;
 }
 
-const initialPets: Pet[] = [
-  {
-    id: 1,
-    name: '코코',
-    breed: '골든 리트리버',
-    age: '만 4세',
-    weight: '28.5kg',
-    gender: '수컷 · 중성화 완료',
-    emoji: '🐶',
-    isActive: true,
-    hScore: 82,
-    tag: '대형견',
-  },
-  {
-    id: 2,
-    name: '나비',
-    breed: '코리안 숏헤어',
-    age: '만 2세',
-    weight: '4.2kg',
-    gender: '암컷 · 중성화 완료',
-    emoji: '🐱',
-    isActive: false,
-    hScore: 91,
-    tag: '고양이',
-  },
-];
+function toPetDisplay(p: PetProfileResponse): PetDisplay {
+  return {
+    id: p.petId,
+    name: p.name,
+    breed: p.breed ?? '',
+    age: p.ageYears != null ? `만 ${p.ageYears}세` : '',
+    weight: p.weightKg != null ? `${p.weightKg}kg` : '',
+    gender: petGenderText(p.gender, p.isNeutered),
+    emoji: petEmoji(p.type),
+    isActive: p.isActive,
+    tag: petTag(p.type, p.dogSize),
+  };
+}
 
 export default function PetSwitchScreen() {
   const navigate = useNavigate();
-  const [pets, setPets] = useState<Pet[]>(initialPets);
-  const [selectedId, setSelectedId] = useState<number>(1);
+  const [pets, setPets] = useState<PetDisplay[]>([]);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [switching, setSwitching] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    listPets()
+      .then((data) => {
+        const display = data.map(toPetDisplay);
+        setPets(display);
+        const active = data.find((p) => p.isActive);
+        setSelectedId(active?.petId ?? data[0]?.petId ?? null);
+      })
+      .catch(() => setError('프로필 목록을 불러오지 못했습니다.'))
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleSelect = (id: number) => {
     setSelectedId(id);
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
+    if (selectedId == null) return;
+    const alreadyActive = pets.find((p) => p.id === selectedId)?.isActive;
+    if (alreadyActive) {
+      navigate('/home');
+      return;
+    }
     setSwitching(true);
-    const updated = pets.map((p) => ({ ...p, isActive: p.id === selectedId }));
-    setPets(updated);
-    setTimeout(() => navigate('/home'), 700);
+    try {
+      await activatePet(selectedId);
+      navigate('/home');
+    } catch {
+      setSwitching(false);
+      setError('프로필 전환에 실패했습니다. 다시 시도해주세요.');
+    }
   };
 
   const selectedPet = pets.find((p) => p.id === selectedId);
@@ -77,8 +95,22 @@ export default function PetSwitchScreen() {
               <p style={{ fontSize: '11px', fontWeight: 600, color: '#9E9E9E' }}>현재 활성 프로필</p>
             </div>
 
+            {/* Loading */}
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <p style={{ fontSize: '13px', color: '#9E9E9E' }}>불러오는 중...</p>
+              </div>
+            )}
+
+            {/* Error */}
+            {!loading && error && (
+              <div className="rounded-xl px-4 py-3" style={{ backgroundColor: '#FFF3F3', border: '1px solid #FFCDD2' }}>
+                <p style={{ fontSize: '12px', color: '#C62828' }}>{error}</p>
+              </div>
+            )}
+
             {/* Pet Cards */}
-            {pets.map((pet) => {
+            {!loading && !error && pets.map((pet) => {
               const isSelected = selectedId === pet.id;
               const wasActive = pet.isActive;
               return (
@@ -154,36 +186,13 @@ export default function PetSwitchScreen() {
                       {isSelected && <Check size={13} style={{ color: 'white' }} />}
                     </div>
                   </div>
-
-                  {/* H-Score bar */}
-                  {isSelected && (
-                    <div className="mt-3 pt-3" style={{ borderTop: '1px solid #E8F0FA' }}>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span style={{ fontSize: '10px', color: '#6A9FD4', fontWeight: 600 }}>건강 점수 (H-Score)</span>
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: '#1B4B8C' }}>{pet.hScore}</span>
-                      </div>
-                      <div
-                        className="rounded-full overflow-hidden"
-                        style={{ height: '5px', backgroundColor: '#E8F0FA' }}
-                      >
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${pet.hScore}%`,
-                            background: 'linear-gradient(90deg, #1B4B8C 0%, #6A9FD4 100%)',
-                            transition: 'width 0.4s ease',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </button>
               );
             })}
 
             {/* Register New Pet */}
             <button
-              onClick={() => navigate('/onboarding/3')}
+              onClick={() => navigate('/onboarding/1')}
               className="w-full rounded-2xl p-4 flex items-center gap-4 transition-all active:scale-[0.98]"
               style={{
                 backgroundColor: 'white',
@@ -228,7 +237,7 @@ export default function PetSwitchScreen() {
           )}
           <button
             onClick={handleConfirm}
-            disabled={switching}
+            disabled={switching || selectedId == null}
             className="w-full rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
             style={{
               height: '52px',
