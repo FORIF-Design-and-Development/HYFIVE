@@ -95,7 +95,6 @@ export default function PetEditScreen() {
   const neuterOptions: { value: NeuterStatus; label: string; desc: string; emoji: string }[] = [
     { value: 'completed', label: '중성화 완료', desc: '수술을 마쳤어요', emoji: '✅' },
     { value: 'not_done', label: '미실시', desc: '아직 수술 전이에요', emoji: '⭕' },
-    { value: 'unknown', label: '모름', desc: '입양 전 상태 불확실', emoji: '❔' },
   ];
 
   if (loading) {
