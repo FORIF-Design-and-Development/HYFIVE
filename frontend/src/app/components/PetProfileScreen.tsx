@@ -1,8 +1,11 @@
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import NavHeader from './NavHeader';
 import BottomNav from './BottomNav';
-import { Edit2, RefreshCw, Heart, Scale, Syringe, Calendar, ChevronRight, Shield } from 'lucide-react';
+import { Edit2, RefreshCw, Heart, Scale, Syringe, Calendar, ChevronRight, Camera } from 'lucide-react';
+import { type PetProfileResponse, getActivePet, updatePet, petEmoji, petTag, petGenderText } from '../api/profile';
+import { uploadProfileImage } from '../api/onboarding';
 
 const petStats = [
   { icon: '🏃', label: '이번 주 산책', value: '3회', sub: '총 85분', color: '#E8F0FA', iconBg: '#C5D8EE' },
@@ -19,23 +22,79 @@ const vaccineRecords = [
 
 export default function PetProfileScreen() {
   const navigate = useNavigate();
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const [pet, setPet] = useState<PetProfileResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [localPhotoUrl, setLocalPhotoUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    getActivePet()
+      .then(setPet)
+      .catch(() => setError('반려동물 정보를 불러오지 못했습니다.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (localPhotoUrl) URL.revokeObjectURL(localPhotoUrl);
+    };
+  }, [localPhotoUrl]);
+
+  const handlePhotoChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !pet) return;
+
+    const preview = URL.createObjectURL(file);
+    setLocalPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return preview;
+    });
+
+    setUploading(true);
+    try {
+      const s3Url = await uploadProfileImage(file);
+      await updatePet(pet.petId, { profileImageUrl: s3Url });
+      setPet((prev) => prev ? { ...prev, profileImageUrl: s3Url } : prev);
+      setLocalPhotoUrl(null);
+    } catch {
+      // 업로드 실패 시 로컬 미리보기 유지, 다음 새로고침에서 원복됨
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const currentPhotoUrl = localPhotoUrl ?? pet?.profileImageUrl ?? null;
+
+  if (loading) {
+    return (
+      <MobileFrame>
+        <div className="h-full flex items-center justify-center" style={{ fontFamily: "'Noto Sans KR', sans-serif" }}>
+          <p style={{ fontSize: '13px', color: '#9E9E9E' }}>불러오는 중...</p>
+        </div>
+      </MobileFrame>
+    );
+  }
+
+  type InfoTag = { icon: React.JSX.Element; text: string };
+  const infoTags: InfoTag[] = [
+    pet?.ageYears != null
+      ? { icon: <Calendar size={10} />, text: `만 ${pet.ageYears}세${pet.birthdate ? ` (${pet.birthdate.replace(/-/g, '.')})` : ''}` }
+      : null,
+    pet?.weightKg != null
+      ? { icon: <Scale size={10} />, text: `${pet.weightKg} kg` }
+      : null,
+    pet
+      ? { icon: <Heart size={10} />, text: petGenderText(pet.gender, pet.isNeutered) }
+      : null,
+  ].filter((t): t is InfoTag => t !== null);
 
   return (
     <MobileFrame>
       <div className="h-full flex flex-col" style={{ fontFamily: "'Noto Sans KR', sans-serif", backgroundColor: '#F5F7FC' }}>
-        <NavHeader
-          title="반려동물 프로필"
-          rightElement={
-            <button
-              onClick={() => navigate('/profile/switch')}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full transition-all active:scale-95"
-              style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}
-            >
-              <RefreshCw size={12} style={{ color: '#1B4B8C' }} />
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#1B4B8C' }}>전환</span>
-            </button>
-          }
-        />
+        <NavHeader title="반려동물 프로필" />
 
         <div className="flex-1 overflow-y-auto">
           {/* Hero Card */}
@@ -47,58 +106,88 @@ export default function PetProfileScreen() {
                 boxShadow: '0 6px 24px rgba(13,43,94,0.35)',
               }}
             >
+              {/* Error banner */}
+              {error && (
+                <div className="rounded-xl px-3 py-2 mb-3" style={{ backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.8)' }}>{error}</p>
+                </div>
+              )}
+
               {/* Avatar + Basic Info */}
               <div className="flex items-start gap-4 mb-4">
                 <div className="relative flex-shrink-0">
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoChange}
+                  />
                   <div
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center"
+                    className="w-20 h-20 rounded-2xl flex items-center justify-center overflow-hidden"
                     style={{ backgroundColor: 'rgba(255,255,255,0.18)', border: '2px solid rgba(255,255,255,0.35)' }}
                   >
-                    <span style={{ fontSize: '44px', lineHeight: 1 }}>🐶</span>
+                    {currentPhotoUrl ? (
+                      <img
+                        src={currentPhotoUrl}
+                        alt={pet?.name ?? '반려동물'}
+                        className="w-full h-full"
+                        style={{ objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '44px', lineHeight: 1 }}>{pet ? petEmoji(pet.type) : '🐾'}</span>
+                    )}
                   </div>
-                  {/* Edit photo overlay */}
                   <button
+                    type="button"
                     className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: '#6A9FD4', border: '2px solid rgba(255,255,255,0.5)' }}
-                    onClick={() => navigate('/profile/edit')}
+                    style={{
+                      backgroundColor: uploading ? '#9E9E9E' : '#6A9FD4',
+                      border: '2px solid rgba(255,255,255,0.5)',
+                    }}
+                    onClick={() => !uploading && photoInputRef.current?.click()}
+                    aria-label="프로필 사진 업로드"
+                    disabled={uploading}
                   >
-                    <Edit2 size={10} style={{ color: 'white' }} />
+                    <Camera size={10} style={{ color: 'white' }} />
                   </button>
                 </div>
 
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <p style={{ fontSize: '20px', fontWeight: 800, color: 'white', letterSpacing: '-0.5px' }}>코코</p>
-                    <span
-                      className="px-2 py-0.5 rounded-full"
-                      style={{ backgroundColor: 'rgba(255,255,255,0.2)', fontSize: '10px', color: 'rgba(255,255,255,0.95)', fontWeight: 600 }}
-                    >
-                      대형견
-                    </span>
+                    <p style={{ fontSize: '20px', fontWeight: 800, color: 'white', letterSpacing: '-0.5px' }}>
+                      {pet?.name ?? '—'}
+                    </p>
+                    {pet && (
+                      <span
+                        className="px-2 py-0.5 rounded-full"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.2)', fontSize: '10px', color: 'rgba(255,255,255,0.95)', fontWeight: 600 }}
+                      >
+                        {petTag(pet.type, pet.dogSize)}
+                      </span>
+                    )}
                   </div>
-                  <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', marginBottom: '2px' }}>골든 리트리버</p>
-                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.65)' }}>등록번호 410191-000XXXX</p>
+                  {pet?.breed && (
+                    <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', marginBottom: '2px' }}>{pet.breed}</p>
+                  )}
                 </div>
               </div>
 
               {/* Info Tags Row */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {[
-                  { icon: <Calendar size={10} />, text: '만 4세 (2021.03.12)' },
-                  { icon: <Scale size={10} />, text: '28.5 kg' },
-                  { icon: <Heart size={10} />, text: '수컷 · 중성화 완료' },
-                  { icon: null, text: 'HYFIVE 등록' },
-                ].map((tag, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-1 px-2 py-1 rounded-full"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.2)' }}
-                  >
-                    <span style={{ color: 'rgba(255,255,255,0.75)' }}>{tag.icon}</span>
-                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{tag.text}</span>
-                  </div>
-                ))}
-              </div>
+              {infoTags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {infoTags.map((tag, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-1 px-2 py-1 rounded-full"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.2)' }}
+                    >
+                      <span style={{ color: 'rgba(255,255,255,0.75)' }}>{tag.icon}</span>
+                      <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.9)', fontWeight: 500 }}>{tag.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex gap-3">
@@ -205,23 +294,11 @@ export default function PetProfileScreen() {
               </div>
             </div>
 
-            {/* H-Score */}
+            {/* Health Report */}
             <div
               className="rounded-2xl p-4"
               style={{ background: 'linear-gradient(135deg, #0D2B5E 0%, #1B4B8C 100%)', boxShadow: '0 4px 16px rgba(13,43,94,0.25)' }}
             >
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  
-                  <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.65)', marginTop: '2px' }}></p>
-                </div>
-                <div className="text-center">
-                  
-                  
-                </div>
-              </div>
-              {/* Progress bar */}
-              
               <button
                 onClick={() => navigate('/report')}
                 className="w-full rounded-xl flex items-center justify-center gap-1 transition-all active:scale-[0.97]"
