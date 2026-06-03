@@ -254,12 +254,8 @@ export default function PetProfileScreen() {
 
             {/* Vaccine / Prevention */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center mb-2">
                 <p style={{ fontSize: '13px', fontWeight: 700, color: '#0D2B5E' }}>예방접종 · 투약 현황</p>
-                <button className="flex items-center gap-0.5">
-                  <span style={{ fontSize: '11px', color: '#1B4B8C', fontWeight: 600 }}>전체보기</span>
-                  <ChevronRight size={12} style={{ color: '#1B4B8C' }} />
-                </button>
               </div>
               <div className="bg-white rounded-2xl overflow-hidden" style={{ border: '1px solid #E0E0E0' }}>
                 {vaccineRecords.map((v, i) => (

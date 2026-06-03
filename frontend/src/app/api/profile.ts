@@ -1,5 +1,6 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 const TOKEN_KEY = 'hyfive_token';
+const PET_ID_KEY = 'hyfive_petId';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -143,5 +144,7 @@ export async function activatePet(petId: number): Promise<PetProfileResponse> {
     method: 'PATCH',
     headers: authHeaders(),
   });
-  return parse<PetProfileResponse>(res);
+  const pet = await parse<PetProfileResponse>(res);
+  localStorage.setItem(PET_ID_KEY, String(petId));
+  return pet;
 }
