@@ -88,6 +88,7 @@ function formatDateLabel(dateStr: string) {
 
 export default function HealthLogScreen() {
   const navigate = useNavigate();
+  const petId = Number(localStorage.getItem('hyfive_petId'));
 
   // 오늘 날짜용 폼 상태 (편집 가능)
   const [weight, setWeight] = useState(0);
@@ -117,7 +118,7 @@ export default function HealthLogScreen() {
 
   // ── Effect 1: 마운트 시 목록 조회 → 날짜→ID 맵 + 캘린더 dot 구성 ───────────
   useEffect(() => {
-    listHealthRecords(CURRENT_PET_ID)
+    listHealthRecords(petId)
       .then(records => {
         const map: Record<string, number> = {};
         const dates = new Set<string>();
@@ -132,7 +133,7 @@ export default function HealthLogScreen() {
       .catch(() => {
         // 목록 실패는 무시 — 캘린더 dot만 안 보임
       });
-  }, []);
+  }, [petId]);
 
   // ── Effect 2: 날짜 변경 시 단건 조회 → 폼 반영 ──────────────────────────────
   useEffect(() => {
@@ -239,7 +240,7 @@ export default function HealthLogScreen() {
     setSaveError('');
 
     const body = {
-      petId: CURRENT_PET_ID,
+      petId,
       weight,
       bowelStatus: FECAL_TO_API[fecal],
       medications: meds.map(m => ({ name: m.label, isTaken: m.checked })),
