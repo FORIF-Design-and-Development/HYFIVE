@@ -15,6 +15,8 @@ import {
 
 type FecalState = '정상' | '무름' | '딱딱함' | '혈변' | '없음';
 
+const CURRENT_PET_ID = Number(localStorage.getItem('hyfive_petId') ?? '1');
+
 const FECAL_TO_API: Record<FecalState, BowelStatus> = {
   '정상': 'NORMAL', '무름': 'SOFT', '딱딱함': 'HARD', '혈변': 'BLOOD', '없음': 'NONE',
 };
