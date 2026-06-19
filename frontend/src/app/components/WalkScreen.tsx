@@ -1,15 +1,60 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import BottomNav from './BottomNav';
-import { Play, Pause, Square, Share2, ChevronLeft, Navigation, Timer, Footprints, Flame } from 'lucide-react';
+import { Play, Pause, Square, ChevronLeft, Navigation, Timer, Footprints, Flame, AlertCircle, Loader2, MapPinOff } from 'lucide-react';
+import {
+  loadKakaoMap,
+  haversineMeters,
+  SEOUL_CITY_HALL,
+  type KakaoMap,
+  type KakaoMarker,
+  type KakaoPolyline,
+} from '../lib/kakao-map';
+import { fetchWalkSnapshot } from '../api/snapshot';
+import type { WalkDoneState } from './WalkDoneScreen';
 
-type WalkState = 'ready' | 'walking' | 'paused' | 'done';
+// Discard GPS fixes worse than this (jitter inflates distance otherwise)
+const ACCURACY_THRESHOLD_M = 50;
+// Single-tick distance bounds — below = noise, above = bad fix / teleport
+const MIN_SEGMENT_M = 2;
+const MAX_SEGMENT_M = 200;
+
+type WalkState = 'ready' | 'walking' | 'paused';
+type GpsState =
+  | 'loading'      // SDK / first fix still pending
+  | 'ready'        // got an initial fix, idle
+  | 'tracking'     // actively receiving watchPosition updates
+  | 'denied'       // user denied permission
+  | 'unsupported'  // geolocation API not available
+  | 'unavailable'  // signal lost / position error
+  | 'sdk-error';   // kakao SDK failed to load
+
+// 28.5 kg dog @ casual walk ≈ 0.5 kcal / kg / km
+const KCAL_PER_KM = 14.25;
 
 interface WalkStats {
   seconds: number;
   distanceM: number;
-  calories: number;
+  speedKmh: number; // current (last segment) speed
+}
+
+function formatSpeed(kmh: number) {
+  if (kmh <= 0) return '0.0 km/h';
+  return `${kmh.toFixed(1)} km/h`;
+}
+
+function formatPace(seconds: number, distanceM: number) {
+  if (distanceM < 50) return '—';
+  const secPerKm = seconds / (distanceM / 1000);
+  const m = Math.floor(secPerKm / 60);
+  const s = Math.floor(secPerKm % 60);
+  return `${m}'${String(s).padStart(2, '0')}"/km`;
+}
+
+function toLocalIso(d: Date) {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function formatTime(s: number) {
@@ -25,100 +70,351 @@ function formatDist(m: number) {
   return `${(m / 1000).toFixed(2)}km`;
 }
 
-// Static mock path points for the SVG map
-const PATH_POINTS = [
-  [60, 140], [90, 120], [130, 110], [170, 125], [200, 150],
-  [215, 185], [200, 215], [170, 230], [135, 235], [100, 220],
-  [75, 195], [60, 165], [60, 140],
-] as [number, number][];
+function calories(distanceM: number) {
+  return Math.round((distanceM / 1000) * KCAL_PER_KM);
+}
 
-function MapView({ progress }: { progress: number }) {
-  const pts = PATH_POINTS.slice(0, Math.max(2, Math.round(progress * PATH_POINTS.length)));
-  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ');
-  const current = pts[pts.length - 1];
-
-  return (
-    <div className="relative w-full" style={{ height: '220px', overflow: 'hidden', borderRadius: '0' }}>
-      {/* Map background (mockup) */}
-      <svg width="100%" height="220" viewBox="0 0 280 220" style={{ position: 'absolute', inset: 0 }}>
-        {/* Background */}
-        <rect width="280" height="220" fill="#E8F0FA"/>
-        {/* Grid lines (streets) */}
-        {[40, 80, 120, 160, 200, 240].map(x => (
-          <line key={`v${x}`} x1={x} y1="0" x2={x} y2="220" stroke="#D0DCEA" strokeWidth="1"/>
-        ))}
-        {[40, 80, 120, 160].map(y => (
-          <line key={`h${y}`} x1="0" y1={y} x2="280" y2={y} stroke="#D0DCEA" strokeWidth="6"/>
-        ))}
-        {/* Park area */}
-        <rect x="90" y="120" width="100" height="60" rx="8" fill="#C8E6C9" opacity="0.7"/>
-        <text x="140" y="155" textAnchor="middle" fill="#4CAF50" fontSize="9" fontWeight="600">공원</text>
-        {/* Street labels */}
-        <text x="15" y="38" fill="#BDBDBD" fontSize="8">대로</text>
-        <text x="15" y="78" fill="#BDBDBD" fontSize="8">중로</text>
-        {/* Walk path */}
-        <path d={d} fill="none" stroke="#1B4B8C" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.85"/>
-        {/* Start pin */}
-        <circle cx={PATH_POINTS[0][0]} cy={PATH_POINTS[0][1]} r="7" fill="#4CAF50"/>
-        <text x={PATH_POINTS[0][0]} y={PATH_POINTS[0][1] + 4} textAnchor="middle" fill="white" fontSize="8" fontWeight="700">S</text>
-        {/* Current position */}
-        <circle cx={current[0]} cy={current[1]} r="9" fill="#1B4B8C" opacity="0.2"/>
-        <circle cx={current[0]} cy={current[1]} r="6" fill="#1B4B8C"/>
-        <circle cx={current[0]} cy={current[1]} r="2.5" fill="white"/>
-      </svg>
-      {/* GPS Label */}
-      <div className="absolute top-2 right-2 px-2 py-1 rounded-lg flex items-center gap-1" style={{ backgroundColor: 'rgba(27,75,140,0.85)' }}>
-        <Navigation size={10} style={{ color: 'white' }} />
-        <span style={{ fontSize: '9px', color: 'white', fontWeight: 700 }}>GPS 추적 중</span>
-      </div>
-    </div>
-  );
+function gpsLabel(state: GpsState): { text: string; tone: 'ok' | 'warn' | 'error' } {
+  switch (state) {
+    case 'tracking': return { text: 'GPS 추적 중', tone: 'ok' };
+    case 'ready': return { text: 'GPS 신호 양호', tone: 'ok' };
+    case 'loading': return { text: 'GPS 신호 확인 중…', tone: 'warn' };
+    case 'denied': return { text: '위치 권한 거부됨', tone: 'error' };
+    case 'unsupported': return { text: '위치 정보 미지원', tone: 'error' };
+    case 'unavailable': return { text: 'GPS 신호 끊김', tone: 'warn' };
+    case 'sdk-error': return { text: '지도 로드 실패', tone: 'error' };
+  }
 }
 
 export default function WalkScreen() {
   const navigate = useNavigate();
   const [walkState, setWalkState] = useState<WalkState>('ready');
-  const [stats, setStats] = useState<WalkStats>({ seconds: 0, distanceM: 0, calories: 0 });
-  const [progress, setProgress] = useState(0.15);
+  const [stats, setStats] = useState<WalkStats>({ seconds: 0, distanceM: 0, speedKmh: 0 });
+  const [gpsState, setGpsState] = useState<GpsState>('loading');
+
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startAtRef = useRef<string | null>(null);
+
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const kakaoRef = useRef<Awaited<ReturnType<typeof loadKakaoMap>> | null>(null);
+  const mapRef = useRef<KakaoMap | null>(null);
+  const markerRef = useRef<KakaoMarker | null>(null);
+  const polylineRef = useRef<KakaoPolyline | null>(null);
+  const pathRef = useRef<{ lat: number; lng: number; ts: number }[]>([]);
+  // Latest map center / marker position — used as a 1-point snapshot fallback
+  // when no walking path was recorded (e.g. desktop testing, no movement).
+  const lastKnownPosRef = useRef<{ lat: number; lng: number }>({ ...SEOUL_CITY_HALL });
+  const watchIdRef = useRef<number | null>(null);
+  // Skip distance accumulation for the next segment (set after pause→resume)
+  const skipNextSegmentRef = useRef<boolean>(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+
+  // Bootstrap: load SDK + create map + try one geolocation fix
+  useEffect(() => {
+    let cancelled = false;
+
+    loadKakaoMap()
+      .then(kakao => {
+        if (cancelled) return;
+        kakaoRef.current = kakao;
+        if (!mapContainerRef.current) return;
+        const center = new kakao.LatLng(SEOUL_CITY_HALL.lat, SEOUL_CITY_HALL.lng);
+        const map = new kakao.Map(mapContainerRef.current, { center, level: 3 });
+        // Auto-tracking follows GPS; disable wheel/drag so the page can scroll
+        // freely over the map area and the camera doesn't drift on input.
+        map.setZoomable(false);
+        map.setDraggable(false);
+        mapRef.current = map;
+        markerRef.current = new kakao.Marker({ position: center, map });
+        const polyline = new kakao.Polyline({
+          path: [],
+          strokeWeight: 5,
+          strokeColor: '#1B4B8C',
+          strokeOpacity: 0.85,
+          strokeStyle: 'solid',
+        });
+        polyline.setMap(map);
+        polylineRef.current = polyline;
+
+        if (!('geolocation' in navigator)) {
+          setGpsState('unsupported');
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          pos => {
+            if (cancelled || !kakaoRef.current || !mapRef.current) return;
+            lastKnownPosRef.current = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            const ll = new kakaoRef.current.LatLng(pos.coords.latitude, pos.coords.longitude);
+            mapRef.current.setCenter(ll);
+            markerRef.current?.setPosition(ll);
+            setGpsState('ready');
+          },
+          err => {
+            if (cancelled) return;
+            setGpsState(err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable');
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
+        );
+      })
+      .catch(e => {
+        console.error('Kakao Map load failed', e);
+        if (!cancelled) setGpsState('sdk-error');
+      });
+
+    return () => {
+      cancelled = true;
+      if (watchIdRef.current != null && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Re-measure the map after walkState changes (in case the parent layout shifts)
+  useEffect(() => {
+    mapRef.current?.relayout();
+  }, [walkState]);
+
+  const startWatch = useCallback(() => {
+    if (!('geolocation' in navigator) || !kakaoRef.current) {
+      setGpsState(prev => (prev === 'sdk-error' ? prev : 'unsupported'));
+      return;
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      pos => {
+        const { latitude, longitude, accuracy, speed } = pos.coords;
+        const ts = pos.timestamp;
+        const kakao = kakaoRef.current;
+        if (!kakao || !mapRef.current) return;
+
+        // Always show the marker — but only accumulate distance for good fixes
+        lastKnownPosRef.current = { lat: latitude, lng: longitude };
+        const ll = new kakao.LatLng(latitude, longitude);
+        mapRef.current.panTo(ll);
+        markerRef.current?.setPosition(ll);
+        setGpsState('tracking');
+
+        if (accuracy != null && accuracy > ACCURACY_THRESHOLD_M) {
+          // Bad fix — don't use for path/distance; just refresh the marker
+          return;
+        }
+
+        const prev = pathRef.current[pathRef.current.length - 1];
+        pathRef.current.push({ lat: latitude, lng: longitude, ts });
+        polylineRef.current?.setPath(pathRef.current.map(p => new kakao.LatLng(p.lat, p.lng)));
+
+        if (skipNextSegmentRef.current) {
+          // First fix after resume — establish baseline without counting the gap
+          skipNextSegmentRef.current = false;
+          setStats(s => ({ ...s, speedKmh: 0 }));
+          return;
+        }
+
+        if (!prev) return; // first ever fix — nothing to measure against
+
+        const d = haversineMeters(prev.lat, prev.lng, latitude, longitude);
+        if (d < MIN_SEGMENT_M || d >= MAX_SEGMENT_M) return;
+
+        const dtSec = Math.max((ts - prev.ts) / 1000, 0.001);
+        // Prefer the device-reported speed when available + sane; else derive
+        const segmentKmh =
+          speed != null && speed >= 0 && Number.isFinite(speed)
+            ? speed * 3.6
+            : (d / dtSec) * 3.6;
+
+        setStats(s => ({
+          ...s,
+          distanceM: s.distanceM + Math.round(d),
+          speedKmh: segmentKmh,
+        }));
+      },
+      err => {
+        setGpsState(err.code === err.PERMISSION_DENIED ? 'denied' : 'unavailable');
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
+    );
+    watchIdRef.current = watchId;
+  }, []);
+
+  const stopWatch = useCallback(() => {
+    if (watchIdRef.current != null && 'geolocation' in navigator) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  }, []);
+
+  const tick = () => {
+    setStats(s => ({ ...s, seconds: s.seconds + 1 }));
+  };
 
   const startWalk = () => {
+    startAtRef.current = toLocalIso(new Date());
     setWalkState('walking');
-    timerRef.current = setInterval(() => {
-      setStats(s => ({
-        seconds: s.seconds + 1,
-        distanceM: Math.round(s.distanceM + 1.8),
-        calories: Math.round(s.calories + 0.12),
-      }));
-      setProgress(p => Math.min(1, p + 0.012));
-    }, 1000);
+    timerRef.current = setInterval(tick, 1000);
+    startWatch();
   };
 
   const pauseWalk = () => {
     setWalkState('paused');
     if (timerRef.current) clearInterval(timerRef.current);
+    stopWatch();
+    setStats(s => ({ ...s, speedKmh: 0 }));
   };
 
   const resumeWalk = () => {
     setWalkState('walking');
-    timerRef.current = setInterval(() => {
-      setStats(s => ({
-        seconds: s.seconds + 1,
-        distanceM: Math.round(s.distanceM + 1.8),
-        calories: Math.round(s.calories + 0.12),
-      }));
-      setProgress(p => Math.min(1, p + 0.012));
-    }, 1000);
+    timerRef.current = setInterval(tick, 1000);
+    skipNextSegmentRef.current = true; // don't count the gap during pause
+    startWatch();
   };
 
-  const stopWalk = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setWalkState('done');
-  };
+  // Snapshot strategy:
+  //   1. Ask the backend for a Naver Static Map PNG (real basemap + our path).
+  //   2. If backend returns 204 (no Naver creds, upstream error, or coords < 2),
+  //      fall back to a local SVG render — path-only on a grid background.
+  // Kakao tiles can't be used here because the public tile servers don't send
+  // CORS headers, so client-side canvas capture taints/drops the basemap.
+  const captureMapSnapshot = useCallback(async (): Promise<string | null> => {
+    const path = pathRef.current;
 
-  useEffect(() => {
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    const W = 720;
+    const H = 280;
+
+    // Prefer the recorded route; if nothing was recorded (no movement / desktop
+    // testing), still render a map centered on the current position so the
+    // result card shows where the walk happened instead of an empty placeholder.
+    const remotePoints =
+      path.length >= 1
+        ? path.map(p => ({ lat: p.lat, lng: p.lng }))
+        : [lastKnownPosRef.current];
+    const remote = await fetchWalkSnapshot(remotePoints, W, H);
+    if (remote) return remote;
+
+    // ---- Local SVG fallback (works for any path length, incl. 0) ----
+    const PAD = 28;
+
+    const gridDefs =
+      `<defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse">` +
+      `<path d="M40 0 L0 0 0 40" fill="none" stroke="#C5D8EE" stroke-width="0.5" opacity="0.6"/>` +
+      `</pattern></defs>`;
+    const background =
+      `<rect width="${W}" height="${H}" fill="#E8F0FA"/>` +
+      `<rect width="${W}" height="${H}" fill="url(#g)"/>`;
+
+    let body = '';
+    if (path.length >= 2) {
+      let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+      for (const p of path) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+      }
+      const latSpan = Math.max(maxLat - minLat, 1e-5);
+      const lngSpan = Math.max(maxLng - minLng, 1e-5);
+      const scale = Math.min((W - PAD * 2) / lngSpan, (H - PAD * 2) / latSpan);
+      const offsetX = (W - lngSpan * scale) / 2;
+      const offsetY = (H - latSpan * scale) / 2;
+      const toX = (lng: number) => offsetX + (lng - minLng) * scale;
+      const toY = (lat: number) => offsetY + (maxLat - lat) * scale;
+      const d = path
+        .map((p, i) => `${i === 0 ? 'M' : 'L'}${toX(p.lng).toFixed(1)},${toY(p.lat).toFixed(1)}`)
+        .join(' ');
+      const start = path[0];
+      const end = path[path.length - 1];
+      body =
+        `<path d="${d}" stroke="#1B4B8C" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.9"/>` +
+        `<circle cx="${toX(start.lng).toFixed(1)}" cy="${toY(start.lat).toFixed(1)}" r="9" fill="#4CAF50" stroke="white" stroke-width="3"/>` +
+        `<circle cx="${toX(end.lng).toFixed(1)}" cy="${toY(end.lat).toFixed(1)}" r="9" fill="#F44336" stroke="white" stroke-width="3"/>`;
+    } else if (path.length === 1) {
+      // Single fix — just drop a marker at the center
+      body =
+        `<circle cx="${W / 2}" cy="${H / 2}" r="11" fill="#1B4B8C" stroke="white" stroke-width="3"/>` +
+        `<text x="${W / 2}" y="${H / 2 + 40}" text-anchor="middle" font-family="'Noto Sans KR', sans-serif" font-size="16" font-weight="700" fill="#1B4B8C">현재 위치</text>`;
+    } else {
+      // No fixes at all — render an empty grid with a helper line so the card
+      // always has an image instead of an error placeholder.
+      body =
+        `<text x="${W / 2}" y="${H / 2 - 8}" text-anchor="middle" font-family="'Noto Sans KR', sans-serif" font-size="18" font-weight="700" fill="#1B4B8C">이동 경로가 기록되지 않았어요</text>` +
+        `<text x="${W / 2}" y="${H / 2 + 20}" text-anchor="middle" font-family="'Noto Sans KR', sans-serif" font-size="12" fill="#6A9FD4">GPS 신호가 잡힌 상태로 실제로 걸어야 경로가 그려져요</text>`;
+    }
+
+    const svg =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+      gridDefs +
+      background +
+      body +
+      `</svg>`;
+
+    const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    try {
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('SVG render failed'));
+        img.src = svgUrl;
+      });
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, W, H);
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      console.warn('Path snapshot failed', e);
+      return null;
+    }
   }, []);
+
+  // Detach Kakao overlays so the SDK stops drawing/fetching after 종료.
+  // Navigation away from /walk will unmount the map div, but explicit detach
+  // releases the SDK's internal listeners and pending tile requests right away.
+  const teardownMap = useCallback(() => {
+    if (watchIdRef.current != null && 'geolocation' in navigator) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    polylineRef.current?.setMap(null);
+    markerRef.current?.setMap(null);
+    polylineRef.current = null;
+    markerRef.current = null;
+    mapRef.current = null;
+  }, []);
+
+  const stopWalk = async () => {
+    if (isCapturing) return;
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    stopWatch();
+    const endedAt = toLocalIso(new Date());
+    const startAt = startAtRef.current ?? endedAt;
+    setIsCapturing(true);
+    let snapshotUrl: string | null = null;
+    try {
+      snapshotUrl = await captureMapSnapshot();
+    } finally {
+      teardownMap();
+      setIsCapturing(false);
+      const doneState: WalkDoneState = {
+        seconds: stats.seconds,
+        distanceM: stats.distanceM,
+        startAt,
+        endedAt,
+        snapshotUrl,
+      };
+      navigate('/walk/done', { state: doneState, replace: true });
+    }
+  };
+
+  const gps = gpsLabel(gpsState);
+  const gpsBadgeBg =
+    gps.tone === 'ok' ? 'rgba(27,75,140,0.85)'
+    : gps.tone === 'warn' ? 'rgba(245,124,0,0.9)'
+    : 'rgba(198,40,40,0.9)';
 
   return (
     <MobileFrame>
@@ -139,10 +435,49 @@ export default function WalkScreen() {
         <div style={{ height: '2px', background: 'linear-gradient(90deg, #1B4B8C 0%, #6A9FD4 50%, transparent 100%)', flexShrink: 0 }} />
 
         <div className="flex-1 overflow-y-auto">
-          {walkState !== 'done' ? (
-            <>
               {/* Map */}
-              <MapView progress={progress} />
+              <div className="relative w-full overflow-hidden" style={{ height: '220px' }}>
+                <div ref={mapContainerRef} className="absolute inset-0 overflow-hidden" style={{ backgroundColor: '#E8F0FA' }} />
+                {gpsState === 'loading' && (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(232,240,250,0.85)' }}>
+                    <div className="flex items-center gap-2">
+                      <Loader2 size={16} className="animate-spin" style={{ color: '#1B4B8C' }} />
+                      <span style={{ fontSize: '12px', color: '#1B4B8C', fontWeight: 600 }}>지도 불러오는 중…</span>
+                    </div>
+                  </div>
+                )}
+                {isCapturing && (
+                  <div className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: 'rgba(13,43,94,0.55)' }}>
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ backgroundColor: 'white' }}>
+                      <Loader2 size={14} className="animate-spin" style={{ color: '#1B4B8C' }} />
+                      <span style={{ fontSize: '12px', color: '#0D2B5E', fontWeight: 700 }}>경로 캡쳐 중…</span>
+                    </div>
+                  </div>
+                )}
+                <div className="absolute top-2 right-2 px-2 py-1 rounded-lg flex items-center gap-1" style={{ backgroundColor: gpsBadgeBg }}>
+                  {gps.tone === 'error' ? <MapPinOff size={10} style={{ color: 'white' }} /> : <Navigation size={10} style={{ color: 'white' }} />}
+                  <span style={{ fontSize: '9px', color: 'white', fontWeight: 700 }}>{gps.text}</span>
+                </div>
+              </div>
+
+              {/* GPS warning banner */}
+              {(gpsState === 'denied' || gpsState === 'unsupported' || gpsState === 'sdk-error') && (
+                <div className="mx-5 mt-3 rounded-xl p-3 flex items-start gap-3" style={{ backgroundColor: '#FFEBEE', border: '1px solid #FFCDD2' }}>
+                  <AlertCircle size={16} style={{ color: '#C62828', flexShrink: 0, marginTop: '2px' }} />
+                  <div className="flex-1">
+                    <p style={{ fontSize: '12px', fontWeight: 700, color: '#C62828' }}>
+                      {gpsState === 'denied' && '위치 권한이 거부됐어요'}
+                      {gpsState === 'unsupported' && '이 기기에서 위치 정보를 쓸 수 없어요'}
+                      {gpsState === 'sdk-error' && '지도를 불러오지 못했어요'}
+                    </p>
+                    <p style={{ fontSize: '10px', color: '#B71C1C', marginTop: '2px', lineHeight: 1.5 }}>
+                      {gpsState === 'denied' && '브라우저 설정 → 사이트 권한 → 위치 정보를 "허용"으로 바꾼 뒤 새로고침해주세요. 산책은 시작할 수 있지만 거리는 0으로 기록됩니다.'}
+                      {gpsState === 'unsupported' && '거리/경로 없이 시간만 기록됩니다.'}
+                      {gpsState === 'sdk-error' && '네트워크 상태와 카카오 키 도메인 설정을 확인해주세요.'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Live Stats */}
               <div className="px-5 py-4 space-y-4">
@@ -150,7 +485,7 @@ export default function WalkScreen() {
                   {[
                     { icon: <Timer size={18} style={{ color: '#1B4B8C' }} />, label: '시간', value: formatTime(stats.seconds) },
                     { icon: <Footprints size={18} style={{ color: '#2E6DB4' }} />, label: '거리', value: formatDist(stats.distanceM) },
-                    { icon: <Flame size={18} style={{ color: '#F57C00' }} />, label: '칼로리', value: `${Math.round(stats.calories)}kcal` },
+                    { icon: <Flame size={18} style={{ color: '#F57C00' }} />, label: '칼로리', value: `${calories(stats.distanceM)}kcal` },
                   ].map((item, i) => (
                     <div key={i} className="rounded-xl p-3 text-center" style={{ backgroundColor: 'white', border: '1px solid #E0E0E0', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
                       <div className="flex justify-center mb-1">{item.icon}</div>
@@ -160,13 +495,31 @@ export default function WalkScreen() {
                   ))}
                 </div>
 
+                {/* Speed / Pace */}
+                {walkState !== 'ready' && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl px-3 py-2 flex items-center justify-between" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
+                      <span style={{ fontSize: '10px', color: '#6A9FD4', fontWeight: 700 }}>현재 속도</span>
+                      <span style={{ fontSize: '13px', color: '#0D2B5E', fontWeight: 700 }}>{formatSpeed(stats.speedKmh)}</span>
+                    </div>
+                    <div className="rounded-xl px-3 py-2 flex items-center justify-between" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
+                      <span style={{ fontSize: '10px', color: '#6A9FD4', fontWeight: 700 }}>평균 페이스</span>
+                      <span style={{ fontSize: '13px', color: '#0D2B5E', fontWeight: 700 }}>{formatPace(stats.seconds, stats.distanceM)}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Status */}
                 {walkState === 'ready' && (
                   <div className="rounded-xl p-3 flex items-center gap-3" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
                     <Navigation size={18} style={{ color: '#1B4B8C' }} />
                     <div>
                       <p style={{ fontSize: '12px', fontWeight: 700, color: '#0D2B5E' }}>시작 준비 완료</p>
-                      <p style={{ fontSize: '10px', color: '#6A9FD4' }}>GPS 신호를 확인했어요. 시작 버튼을 눌러주세요.</p>
+                      <p style={{ fontSize: '10px', color: '#6A9FD4' }}>
+                        {gpsState === 'ready' || gpsState === 'tracking'
+                          ? 'GPS 신호를 확인했어요. 시작 버튼을 눌러주세요.'
+                          : '위치 권한 없이 시작하면 거리는 기록되지 않아요.'}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -201,104 +554,38 @@ export default function WalkScreen() {
                   )}
                   {walkState === 'walking' && (
                     <>
-                      <button onClick={pauseWalk}
-                        className="flex-1 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                      <button onClick={pauseWalk} disabled={isCapturing}
+                        className="flex-1 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-60"
                         style={{ height: '56px', backgroundColor: 'white', border: '2px solid #1B4B8C', color: '#1B4B8C', fontSize: '15px', fontWeight: 700 }}>
                         <Pause size={18} />
                         일시정지
                       </button>
-                      <button onClick={stopWalk}
-                        className="rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                      <button onClick={() => void stopWalk()} disabled={isCapturing}
+                        className="rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-80"
                         style={{ height: '56px', width: '80px', backgroundColor: '#F44336', color: 'white', fontSize: '13px', fontWeight: 700, border: 'none' }}>
-                        <Square size={16} />
-                        종료
+                        {isCapturing ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} />}
+                        {isCapturing ? '저장' : '종료'}
                       </button>
                     </>
                   )}
                   {walkState === 'paused' && (
                     <>
-                      <button onClick={resumeWalk}
-                        className="flex-1 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                      <button onClick={resumeWalk} disabled={isCapturing}
+                        className="flex-1 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-60"
                         style={{ height: '56px', background: 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)', color: 'white', fontSize: '15px', fontWeight: 700, border: 'none', boxShadow: '0 4px 16px rgba(27,75,140,0.3)' }}>
                         <Play size={18} />
                         재시작
                       </button>
-                      <button onClick={stopWalk}
-                        className="rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
+                      <button onClick={() => void stopWalk()} disabled={isCapturing}
+                        className="rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.97] disabled:opacity-80"
                         style={{ height: '56px', width: '80px', backgroundColor: '#F44336', color: 'white', fontSize: '13px', fontWeight: 700, border: 'none' }}>
-                        <Square size={16} />
-                        종료
+                        {isCapturing ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} />}
+                        {isCapturing ? '저장' : '종료'}
                       </button>
                     </>
                   )}
                 </div>
               </div>
-            </>
-          ) : (
-            /* Walk Done Summary */
-            <div className="px-5 py-5 space-y-4">
-              {/* Header */}
-              <div className="text-center">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3" style={{ background: 'linear-gradient(135deg, #1B4B8C, #2E6DB4)', boxShadow: '0 8px 24px rgba(27,75,140,0.3)' }}>
-                  <span style={{ fontSize: '36px' }}>🎉</span>
-                </div>
-                <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#0D2B5E' }}>산책 완료!</h2>
-                <p style={{ fontSize: '12px', color: '#9E9E9E', marginTop: '4px' }}>코코와 함께 멋진 산책을 마쳤어요</p>
-              </div>
-
-              {/* Summary Card */}
-              <div className="rounded-2xl overflow-hidden" style={{ border: '1px solid #E0E0E0', backgroundColor: 'white' }}>
-                <div className="px-4 py-3" style={{ background: 'linear-gradient(135deg, #1B4B8C, #2E6DB4)' }}>
-                  <p style={{ fontSize: '12px', fontWeight: 700, color: 'white' }}>오늘의 산책 결과</p>
-                  <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.75)', marginTop: '1px' }}>2026년 4월 2일</p>
-                </div>
-                <div className="grid grid-cols-3 divide-x" style={{ borderBottom: '1px solid #F5F5F5' }}>
-                  {[
-                    { icon: '⏱', label: '총 시간', value: formatTime(Math.max(stats.seconds, 5)) },
-                    { icon: '📍', label: '이동 거리', value: formatDist(Math.max(stats.distanceM, 150)) },
-                    { icon: '🔥', label: '칼로리', value: `${Math.max(Math.round(stats.calories), 18)}kcal` },
-                  ].map((item, i) => (
-                    <div key={i} className="flex flex-col items-center py-4 px-2">
-                      <span style={{ fontSize: '22px', marginBottom: '4px' }}>{item.icon}</span>
-                      <p style={{ fontSize: '15px', fontWeight: 700, color: '#0D2B5E' }}>{item.value}</p>
-                      <p style={{ fontSize: '10px', color: '#9E9E9E', marginTop: '1px' }}>{item.label}</p>
-                    </div>
-                  ))}
-                </div>
-                {/* Route snapshot */}
-                <div style={{ height: '140px', overflow: 'hidden' }}>
-                  <MapView progress={0.95} />
-                </div>
-              </div>
-
-              {/* Calorie breakdown */}
-              <div className="rounded-xl p-4" style={{ backgroundColor: '#E8F0FA', border: '1px solid #C5D8EE' }}>
-                <p style={{ fontSize: '12px', fontWeight: 700, color: '#1B4B8C', marginBottom: '8px' }}>칼로리 소모 내역</p>
-                <div className="flex justify-between items-center mb-2">
-                  <span style={{ fontSize: '11px', color: '#0D2B5E' }}>코코 (28.5kg 강아지)</span>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#1B4B8C' }}>{Math.max(Math.round(stats.calories), 18)} kcal</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span style={{ fontSize: '11px', color: '#0D2B5E' }}>보호자 추산</span>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#2E6DB4' }}>{Math.max(Math.round(stats.calories * 4.5), 82)} kcal</span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="space-y-2 pb-2">
-                <button className="w-full rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-                  style={{ height: '50px', background: 'linear-gradient(135deg, #E91E63, #FF5722)', color: 'white', fontSize: '14px', fontWeight: 700, border: 'none', boxShadow: '0 4px 16px rgba(233,30,99,0.3)' }}>
-                  <Share2 size={16} />
-                  인스타그램 공유하기
-                </button>
-                <button onClick={() => navigate('/home')}
-                  className="w-full rounded-xl flex items-center justify-center transition-all active:scale-[0.98]"
-                  style={{ height: '50px', background: 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)', color: 'white', fontSize: '14px', fontWeight: 700, border: 'none', boxShadow: '0 4px 16px rgba(27,75,140,0.3)' }}>
-                  홈으로 →
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         <BottomNav active="walk" />

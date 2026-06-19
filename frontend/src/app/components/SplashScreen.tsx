@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { LionMark } from './LionMark';
+import { useMobileFrame } from '../lib/useMobileFrame';
 
 export default function SplashScreen() {
   const navigate = useNavigate();
   const [phase, setPhase] = useState<'logo' | 'ready'>('logo');
-  const useFrame = import.meta.env.VITE_USE_MOBILE_FRAME !== 'false';
+  const useFrame = useMobileFrame();
 
   useEffect(() => {
     const t = setTimeout(() => setPhase('ready'), 1200);

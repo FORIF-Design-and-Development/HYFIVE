@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
 import { ChevronLeft } from 'lucide-react';
+import type { VaccineCode } from '../context/onboarding';
+import { useOnboarding } from '../context/useOnboarding';
 
 function ProgressBar({ step }: { step: number }) {
   return (
@@ -13,21 +15,19 @@ function ProgressBar({ step }: { step: number }) {
   );
 }
 
-type VaccineKey = 'dhppl' | 'rabies' | 'kennel' | 'corona' | 'heartworm' | 'parasite';
-
 interface VaccineItem {
-  key: VaccineKey;
+  code: VaccineCode;
   label: string;
   desc: string;
 }
 
 const VACCINE_LIST: VaccineItem[] = [
-  { key: 'dhppl', label: '종합백신 (DHPPL)', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'rabies', label: '광견병', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'kennel', label: '켄넬코프 (기관지염)', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'corona', label: '코로나 장염', desc: '마지막 접종 후 12개월 주기' },
-  { key: 'heartworm', label: '심장사상충 예방', desc: '매월 1회 투약' },
-  { key: 'parasite', label: '외부기생충 구제', desc: '분기별 1회' },
+  { code: 'DHPPL', label: '종합백신 (DHPPL)', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'RABIES', label: '광견병', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'KENNEL_COUGH', label: '켄넬코프 (기관지염)', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'CORONA_ENTERITIS', label: '코로나 장염', desc: '마지막 접종 후 12개월 주기' },
+  { code: 'HEARTWORM', label: '심장사상충 예방', desc: '매월 1회 투약' },
+  { code: 'PARASITE', label: '외부기생충 구제', desc: '분기별 1회' },
 ];
 
 function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: string; value: boolean; onChange: () => void }) {
@@ -55,20 +55,32 @@ function ToggleRow({ label, desc, value, onChange }: { label: string; desc?: str
 
 export default function OnboardingStep2() {
   const navigate = useNavigate();
-  const [vaccines, setVaccines] = useState<Record<VaccineKey, boolean>>({
-    dhppl: true,
-    rabies: true,
-    kennel: false,
-    corona: false,
-    heartworm: false,
-    parasite: false,
-  });
-  const [lastCheckup, setLastCheckup] = useState('');
-  const [diseases, setDiseases] = useState('');
+  const { step2, updateStep2 } = useOnboarding();
+  const [vaccines, setVaccines] = useState<Record<VaccineCode, boolean>>(step2.vaccines);
+  const [lastCheckup, setLastCheckup] = useState(step2.lastCheckup);
+  const [diseases, setDiseases] = useState(step2.diseases);
 
-  const toggle = (key: VaccineKey) => setVaccines(v => ({ ...v, [key]: !v[key] }));
+  const toggle = (code: VaccineCode) => setVaccines(v => ({ ...v, [code]: !v[code] }));
 
   const completedCount = Object.values(vaccines).filter(Boolean).length;
+
+  const handleNext = () => {
+    updateStep2({
+      vaccines,
+      lastCheckup,
+      diseases,
+    });
+    navigate('/onboarding/3');
+  };
+
+  const handlePrevious = () => {
+    updateStep2({
+      vaccines,
+      lastCheckup,
+      diseases,
+    });
+    navigate('/onboarding/1');
+  };
 
   return (
     <MobileFrame>
@@ -76,7 +88,7 @@ export default function OnboardingStep2() {
 
         {/* Header */}
         <div className="flex-shrink-0 bg-white flex items-center px-4" style={{ height: '52px', borderBottom: '1px solid #E8E8E8' }}>
-          <button onClick={() => navigate('/onboarding/1')} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: '#1B4B8C' }}>
+          <button onClick={handlePrevious} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ color: '#1B4B8C' }}>
             <ChevronLeft size={22} />
           </button>
           <div className="flex-1 text-center">
@@ -107,11 +119,11 @@ export default function OnboardingStep2() {
               <div className="space-y-2">
                 {VACCINE_LIST.map(v => (
                   <ToggleRow
-                    key={v.key}
+                    key={v.code}
                     label={v.label}
                     desc={v.desc}
-                    value={vaccines[v.key]}
-                    onChange={() => toggle(v.key)}
+                    value={vaccines[v.code]}
+                    onChange={() => toggle(v.code)}
                   />
                 ))}
               </div>
@@ -168,12 +180,12 @@ export default function OnboardingStep2() {
 
         {/* CTAs */}
         <div className="flex-shrink-0 px-5" style={{ paddingBottom: '28px', paddingTop: '12px', backgroundColor: '#F8FAFD' }}>
-          <button onClick={() => navigate('/onboarding/3')}
+          <button onClick={handleNext}
             className="w-full rounded-xl transition-all active:scale-[0.98]"
             style={{ height: '50px', background: 'linear-gradient(135deg, #1B4B8C 0%, #2E6DB4 100%)', color: 'white', fontSize: '15px', fontWeight: 700, boxShadow: '0 4px 16px rgba(27,75,140,0.3)', marginBottom: '10px' }}>
             다음
           </button>
-          <button onClick={() => navigate('/onboarding/1')} style={{ width: '100%', textAlign: 'center', fontSize: '13px', color: '#9E9E9E', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <button onClick={handlePrevious} style={{ width: '100%', textAlign: 'center', fontSize: '13px', color: '#9E9E9E', background: 'none', border: 'none', cursor: 'pointer' }}>
             이전으로
           </button>
         </div>

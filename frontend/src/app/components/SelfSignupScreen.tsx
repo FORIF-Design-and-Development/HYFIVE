@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import MobileFrame from './MobileFrame';
-import { ChevronLeft, Eye, EyeOff, CheckCircle2, Mail, RefreshCw, AlertCircle } from 'lucide-react';
+import { ChevronLeft, Eye, EyeOff, CheckCircle2, RefreshCw, AlertCircle, Clock } from 'lucide-react';
+import { sendEmailCode, verifyEmailCode, EmailApiError } from '../api/email';
 
 // Step definitions
 const STEPS = [
@@ -85,34 +86,82 @@ export default function SelfSignupScreen() {
   const [verifyError, setVerifyError] = useState('');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sendError, setSendError] = useState('');
+  const [resending, setResending] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(0);
 
-  const MOCK_CODE = '123456';
+  const codeExpired = codeSent && secondsLeft === 0;
+
+  // 코드 발송 후 3분(180초) 카운트다운
+  useEffect(() => {
+    if (!codeSent || secondsLeft <= 0) return;
+    const id = setInterval(() => setSecondsLeft(s => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(id);
+  }, [codeSent, secondsLeft]);
+
+  const mmss = (sec: number) =>
+    `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
 
   const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email);
   const pwValid = form.password.length >= 8 && /[a-zA-Z]/.test(form.password) && /[0-9]/.test(form.password);
   const pwMatch = form.password === form.confirmPw && form.confirmPw.length > 0;
 
-  const handleSendCode = () => {
+  const handleSendCode = async () => {
     if (!isValidEmail) return;
+    setSendError('');
     setSendingCode(true);
-    setTimeout(() => {
-      setSendingCode(false);
+    try {
+      const { expiresInSec } = await sendEmailCode(form.email);
       setCodeSent(true);
-    }, 1000);
+      setSecondsLeft(expiresInSec);
+      setVerifyError('');
+    } catch {
+      setSendError('인증 코드 발송에 실패했어요. 잠시 후 다시 시도해주세요');
+    } finally {
+      setSendingCode(false);
+    }
   };
 
-  const handleNext = () => {
+  // step2 재발송 — 코드 재요청 + 타이머 리셋
+  const handleResend = async () => {
+    if (resending) return;
+    setResending(true);
+    setVerifyError('');
+    update('verifyCode', '');
+    try {
+      const { expiresInSec } = await sendEmailCode(form.email);
+      setSecondsLeft(expiresInSec);
+    } catch {
+      setVerifyError('재발송에 실패했어요. 잠시 후 다시 시도해주세요');
+    } finally {
+      setResending(false);
+    }
+  };
+
+  const handleNext = async () => {
+    // step2: 인증코드 검증 (실 API / mock)
+    if (step === 2) {
+      setLoading(true);
+      try {
+        await verifyEmailCode(form.email, form.verifyCode);
+        setVerifyError('');
+      } catch (err) {
+        setVerifyError(
+          err instanceof EmailApiError
+            ? err.message
+            : '인증 확인 중 오류가 발생했어요. 잠시 후 다시 시도해주세요',
+        );
+        return;
+      } finally {
+        setLoading(false);
+      }
+      setStep(s => s + 1);
+      return;
+    }
+
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-
-      if (step === 2) {
-        if (form.verifyCode !== MOCK_CODE) {
-          setVerifyError('인증 코드가 올바르지 않습니다. 다시 확인해주세요');
-          return;
-        }
-        setVerifyError('');
-      }
 
       if (step === 6) {
         // Validation check before terms
@@ -144,7 +193,7 @@ export default function SelfSignupScreen() {
 
   const canNext = (): boolean => {
     if (step === 1) return isValidEmail && codeSent;
-    if (step === 2) return form.verifyCode.length === 6;
+    if (step === 2) return form.verifyCode.length === 6 && !codeExpired;
     if (step === 3) return pwValid;
     if (step === 4) return pwMatch;
     if (step === 5) return form.name.trim().length >= 2;
@@ -262,6 +311,12 @@ export default function SelfSignupScreen() {
                 {form.email && !isValidEmail && (
                   <p style={{ fontSize: '10px', color: '#F44336', marginTop: '4px' }}>올바른 이메일 형식이 아닙니다</p>
                 )}
+                {sendError && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <AlertCircle size={13} style={{ color: '#F44336' }} />
+                    <p style={{ fontSize: '11px', color: '#F44336' }}>{sendError}</p>
+                  </div>
+                )}
                 {codeSent && (
                   <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#E8F5E9' }}>
                     <CheckCircle2 size={13} style={{ color: '#4CAF50' }} />
@@ -314,6 +369,20 @@ export default function SelfSignupScreen() {
                     <p style={{ fontSize: '11px', color: '#F44336' }}>{verifyError}</p>
                   </div>
                 )}
+                {/* 3분(180초) 카운트다운 / 만료 안내 */}
+                {codeExpired ? (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <AlertCircle size={13} style={{ color: '#F44336' }} />
+                    <p style={{ fontSize: '11px', color: '#F44336' }}>인증 코드가 만료되었어요. 재발송해주세요</p>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <Clock size={13} style={{ color: secondsLeft <= 30 ? '#F44336' : '#6A9FD4' }} />
+                    <p style={{ fontSize: '11px', fontWeight: 600, color: secondsLeft <= 30 ? '#F44336' : '#6A9FD4' }}>
+                      남은 시간 {mmss(secondsLeft)}
+                    </p>
+                  </div>
+                )}
               </div>
               <div
                 className="rounded-xl p-3 flex items-center gap-3"
@@ -328,10 +397,13 @@ export default function SelfSignupScreen() {
                 </div>
               </div>
               <button
-                onClick={() => { setCodeSent(false); setTimeout(() => setCodeSent(true), 900); }}
-                style={{ fontSize: '12px', color: '#6A9FD4', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                onClick={handleResend}
+                disabled={resending}
+                className="flex items-center gap-1.5"
+                style={{ fontSize: '12px', color: resending ? '#BDBDBD' : '#6A9FD4', fontWeight: 600, background: 'none', border: 'none', cursor: resending ? 'default' : 'pointer', padding: 0 }}
               >
-                코드를 받지 못하셨나요? 재발송
+                {resending && <RefreshCw size={12} className="animate-spin" />}
+                {resending ? '재발송 중…' : '코드를 받지 못하셨나요? 재발송'}
               </button>
             </div>
           )}

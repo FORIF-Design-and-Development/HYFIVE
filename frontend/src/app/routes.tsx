@@ -8,7 +8,6 @@ import SelfSignupScreen from "./components/SelfSignupScreen";
 import SignupTermsScreen from "./components/SignupTermsScreen";
 import ForgotPasswordScreen from "./components/ForgotPasswordScreen";
 import PasswordResetScreen from "./components/PasswordResetScreen";
-import WelcomeLoginScreen from "./components/WelcomeLoginScreen";
 import OnboardingStep1 from "./components/OnboardingStep1";
 import OnboardingStep2 from "./components/OnboardingStep2";
 import OnboardingStep3 from "./components/OnboardingStep3";
@@ -20,6 +19,7 @@ import Screen6PremiumChange from "./components/Screen6PremiumChange";
 import MedicalUploadScreen from "./components/MedicalUploadScreen";
 import MedicalRecordsScreen from "./components/MedicalRecordsScreen";
 import WalkScreen from "./components/WalkScreen";
+import WalkDoneScreen from "./components/WalkDoneScreen";
 import RecordHubScreen from "./components/RecordHubScreen";
 import MealLogScreen from "./components/MealLogScreen";
 import HealthLogScreen from "./components/HealthLogScreen";
@@ -28,6 +28,7 @@ import PetEditScreen from "./components/PetEditScreen";
 import PetSwitchScreen from "./components/PetSwitchScreen";
 import NotificationsScreen from "./components/NotificationsScreen";
 import SettingsScreen from "./components/SettingsScreen";
+import ProfileEditScreen from "./components/ProfileEditScreen";
 
 export const router = createBrowserRouter([
   { path: "/", Component: SplashScreen },
@@ -38,7 +39,6 @@ export const router = createBrowserRouter([
   { path: "/signup/terms", Component: SignupTermsScreen },
   { path: "/forgot-password", Component: ForgotPasswordScreen },
   { path: "/password-reset", Component: PasswordResetScreen },
-  { path: "/welcome-login", Component: WelcomeLoginScreen },
   { path: "/onboarding/1", Component: OnboardingStep1 },
   { path: "/onboarding/2", Component: OnboardingStep2 },
   { path: "/onboarding/3", Component: OnboardingStep3 },
@@ -50,6 +50,7 @@ export const router = createBrowserRouter([
   { path: "/medical-upload", Component: MedicalUploadScreen },
   { path: "/medical-records", Component: MedicalRecordsScreen },
   { path: "/walk", Component: WalkScreen },
+  { path: "/walk/done", Component: WalkDoneScreen },
   { path: "/record", Component: RecordHubScreen },
   { path: "/record/meal", Component: MealLogScreen },
   { path: "/record/health", Component: HealthLogScreen },
@@ -58,5 +59,6 @@ export const router = createBrowserRouter([
   { path: "/profile/switch", Component: PetSwitchScreen },
   { path: "/notifications", Component: NotificationsScreen },
   { path: "/settings", Component: SettingsScreen },
+  { path: "/settings/profile", Component: ProfileEditScreen },
   { path: "*", element: <Navigate to="/" replace /> },
 ]);

@@ -1,11 +1,12 @@
 import { ReactNode } from 'react';
+import { useMobileFrame } from '../lib/useMobileFrame';
 
 interface MobileFrameProps {
   children: ReactNode;
 }
 
 export default function MobileFrame({ children }: MobileFrameProps) {
-  const useFrame = import.meta.env.VITE_USE_MOBILE_FRAME !== 'false';
+  const useFrame = useMobileFrame();
 
   if (!useFrame) {
     return (

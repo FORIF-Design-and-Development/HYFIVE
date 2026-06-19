@@ -2,7 +2,7 @@ name: Frontend CD — Firebase Hosting
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - 'frontend/**'
       - 'firebase.json'
@@ -35,12 +35,16 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          # WebView 배포용: iPhone 목 프레임 비활성화
-          VITE_USE_MOBILE_FRAME: 'false'
-          # 백엔드 URL 확정 후 GitHub Secrets에 등록
+          # 데스크톱 뷰포트(>=768px)에서만 iPhone 목 프레임 표시.
+          # 실제 폰/WebView는 화면 너비가 좁아 자동으로 풀스크린.
+          VITE_USE_MOBILE_FRAME: 'true'
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          VITE_KAKAO_MAP_KEY: ${{ secrets.VITE_KAKAO_MAP_KEY }}
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+          VITE_GEOAPIFY_API_KEY: ${{ secrets.VITE_GEOAPIFY_API_KEY }}
 
-      - name: Deploy to Firebase Hosting
+      # 개발 중에는 dev 머지도 운영 채널(live)에 바로 반영
+      - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
